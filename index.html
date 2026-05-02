@@ -1,44 +1,15 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ko">
   <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>행운제 체육대회 MVP</title>
-    <link rel="stylesheet" href="./styles.css" />
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>우리들의 올림픽</title>
+    <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+    <link href="https://webfontworld.github.io/cafe24/Cafe24Ssurround.css" rel="stylesheet"/>
   </head>
-  <body>
-    <div class="app-shell">
-      <header class="topbar">
-        <div>
-          <p class="eyebrow">행운제 MVP</p>
-          <h1>체육대회 라이브</h1>
-          <p class="topbar-note">학생 화면</p>
-        </div>
-      </header>
-
-      <main id="app" class="screen" aria-live="polite"></main>
-
-      <nav class="bottom-tabs student" aria-label="주요 화면">
-        <button class="tab-button active" data-tab="now" type="button">
-          <span class="tab-icon now" aria-hidden="true"></span>
-          <span>지금</span>
-        </button>
-        <button class="tab-button" data-tab="games" type="button">
-          <span class="tab-icon list" aria-hidden="true"></span>
-          <span>본게임</span>
-        </button>
-        <button class="tab-button" data-tab="booths" type="button">
-          <span class="tab-icon booth" aria-hidden="true"></span>
-          <span>미니부스</span>
-        </button>
-        <button class="tab-button" data-tab="results" type="button">
-          <span class="tab-icon chart" aria-hidden="true"></span>
-          <span>결과</span>
-        </button>
-      </nav>
-    </div>
-
-    <script src="./data.js"></script>
-    <script src="./app.js"></script>
+  <body class="bg-[#fff8f8] text-on-surface antialiased">
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

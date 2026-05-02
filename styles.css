@@ -242,6 +242,37 @@ h4 {
     var(--surface);
 }
 
+.loading-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 160px;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.loading-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--accent);
+  animation: pulse-dot 0.9s ease-in-out infinite alternate;
+}
+
+@keyframes pulse-dot {
+  from {
+    opacity: 0.35;
+    transform: scale(0.85);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 .hero-status,
 .pill {
   display: inline-flex;
@@ -451,6 +482,13 @@ h4 {
   border: 1px solid #111;
   background: #111;
   color: #fff;
+}
+
+.primary-submit-button {
+  width: 100%;
+  min-height: 52px;
+  padding: 14px 18px;
+  font-size: 15px;
 }
 
 .ghost-button {
@@ -675,7 +713,19 @@ h4 {
 }
 
 .score-source-row {
+  gap: 16px;
   padding: 8px 0;
+}
+
+.score-source-main {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.source-score {
+  flex: 0 0 auto;
+  margin-left: 12px;
 }
 
 .accordion-head {
@@ -748,6 +798,10 @@ h4 {
   color: var(--muted);
   font-size: 12px;
   line-height: 1.45;
+}
+
+.tiebreak-helper {
+  grid-column: 1 / -1;
 }
 
 .match-summary {
@@ -862,6 +916,10 @@ h4 {
   display: none !important;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 .set-card,
 .session-row {
   padding: 11px;
@@ -904,13 +962,14 @@ h4 {
 }
 
 .bottom-tabs.admin {
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .tab-button {
   display: grid;
   place-items: center;
   gap: 4px;
+  width: 100%;
   min-height: 58px;
   border: 0;
   border-radius: var(--radius);

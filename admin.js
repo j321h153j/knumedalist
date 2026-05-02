@@ -16,6 +16,7 @@ const state = {
   expandedGroups: loadExpandedGroups(),
   expandedScoreboardTeams: new Set(),
   editingBoothScoreId: null,
+  initialTabApplied: false,
   loading: true,
   auth: {
     client: null,
@@ -128,6 +129,7 @@ function clearAdminState() {
   state.boothSessions = [];
   state.scoreboard = null;
   state.formFeedback = { kind: "", text: "" };
+  state.initialTabApplied = false;
 }
 
 function currentGames() {
@@ -517,6 +519,7 @@ async function loadAdminContext({ silent = false } = {}) {
       const admin = context.admin;
       const fallbackGameMap = new Map(fallbackGames.map((game) => [game.title, game]));
       const fallbackBoothMap = new Map(fallbackBooths.map((booth) => [booth.name, booth]));
+      const previousAdminId = state.admin?.id ?? null;
 
       state.admin = admin;
       state.games = (context.games ?? []).map((row) => {
@@ -629,6 +632,10 @@ async function loadAdminContext({ silent = false } = {}) {
         }));
 
       state.auth.error = "";
+      if (!silent && (!state.initialTabApplied || previousAdminId !== admin.id)) {
+        state.tab = admin.role === "super_admin" ? "forms" : "assignments";
+        state.initialTabApplied = true;
+      }
       state.loading = false;
       if (!silent) render();
     } catch (error) {
@@ -757,7 +764,7 @@ function buildScorePayload(form, game) {
       left: null,
       right: null,
     },
-    note: readTextField(form, "note"),
+    note: null,
   };
 
   if (leftScore === rightScore) {
@@ -808,7 +815,7 @@ function buildRopePayload(form, game) {
     payload: {
       game_id: game.id,
       sets,
-      note: readTextField(form, "note"),
+      note: null,
     },
   };
 }
@@ -853,7 +860,7 @@ function buildDodgeballPayload(form, game) {
     payload: {
       game_id: game.id,
       sets,
-      note: readTextField(form, "note"),
+      note: null,
     },
   };
 }
@@ -874,7 +881,7 @@ function buildRelayPayload(form, game) {
     payload: {
       game_id: game.id,
       rankings,
-      note: readTextField(form, "note"),
+      note: null,
     },
   };
 }
@@ -985,6 +992,34 @@ function withTimeout(promise, timeoutMs, message) {
   ]);
 }
 
+function setInlineFormFeedback(form, kind, text) {
+  state.formFeedback = { kind, text };
+
+  let feedback = form.querySelector("[data-inline-form-feedback]");
+  if (!feedback) {
+    feedback = document.createElement("div");
+    feedback.dataset.inlineFormFeedback = "true";
+    const anchor = form.querySelector(".action-row") ?? form.firstElementChild;
+    if (anchor) anchor.before(feedback);
+    else form.prepend(feedback);
+  }
+
+  feedback.className = `auth-status ${kind === "error" ? "error" : ""}`;
+  feedback.textContent = text;
+}
+
+function setSubmitBusy(form, busy, busyText) {
+  const submitButton = form.querySelector('button[type="submit"]');
+  if (!submitButton) return;
+
+  if (!submitButton.dataset.idleText) {
+    submitButton.dataset.idleText = submitButton.textContent.trim();
+  }
+
+  submitButton.disabled = busy;
+  submitButton.textContent = busy ? busyText : submitButton.dataset.idleText;
+}
+
 async function handleResultSubmit(form) {
   if (!state.auth.client) return;
   if (state.auth.pending === "save") return;
@@ -993,17 +1028,14 @@ async function handleResultSubmit(form) {
   try {
     request = buildResultRequest(form);
   } catch (error) {
-    state.formFeedback = { kind: "error", text: error.message };
-    render();
+    setInlineFormFeedback(form, "error", error.message);
     return;
   }
 
   state.auth.pending = "save";
-  state.formFeedback = {
-    kind: "info",
-    text: "\uACB0\uACFC\uB97C \uC800\uC7A5\uD558\uACE0 \uB2E4\uC74C \uB300\uC9C4\uACFC \uC810\uC218\uB97C \uAC31\uC2E0\uD558\uB294 \uC911\uC785\uB2C8\uB2E4.",
-  };
-  render();
+  let shouldRender = false;
+  setInlineFormFeedback(form, "info", "\uACB0\uACFC\uB97C \uC800\uC7A5\uD558\uB294 \uC911\uC785\uB2C8\uB2E4.");
+  setSubmitBusy(form, true, "\uC800\uC7A5 \uC911");
 
   try {
     const { data, error } = await withTimeout(
@@ -1016,18 +1048,21 @@ async function handleResultSubmit(form) {
     const waiting = data?.advancement?.waiting
       ? " \uC544\uC9C1 \uB2E4\uC74C \uB300\uC9C4\uC740 \uB2E4\uB978 \uACBD\uAE30 \uACB0\uACFC\uB97C \uAE30\uB2E4\uB9AC\uB294 \uC0C1\uD0DC\uC785\uB2C8\uB2E4."
       : "";
-    state.formFeedback = { kind: "success", text: `\uC800\uC7A5 \uC644\uB8CC. Supabase RPC\uAC00 \uC815\uC0C1 \uCC98\uB9AC\uD588\uC2B5\uB2C8\uB2E4.${waiting}` };
+    state.formFeedback = { kind: "success", text: `\uC800\uC7A5 \uC644\uB8CC.${waiting}` };
     await withTimeout(
       refreshAdminContext(),
       10000,
       "\uC800\uC7A5\uC740 \uC644\uB8CC\uB410\uC9C0\uB9CC \uCD5C\uC2E0 \uB370\uC774\uD130 \uC7AC\uC870\uD68C\uAC00 \uC9C0\uC5F0\uB418\uC5C8\uC2B5\uB2C8\uB2E4. \uC0C8\uB85C\uACE0\uCE68\uD558\uBA74 \uCD5C\uC2E0 \uC0C1\uD0DC\uB97C \uBCFC \uC218 \uC788\uC2B5\uB2C8\uB2E4.",
     );
+    state.adminFormId = null;
+    shouldRender = true;
   } catch (error) {
-    state.formFeedback = { kind: "error", text: error.message };
+    setInlineFormFeedback(form, "error", error.message);
   } finally {
     state.auth.pending = null;
     state.loading = false;
-    render();
+    if (shouldRender) render();
+    else setSubmitBusy(form, false);
   }
 }
 
@@ -1039,14 +1074,14 @@ async function handleBoothSubmit(form) {
   try {
     request = buildBoothRequest(form);
   } catch (error) {
-    state.formFeedback = { kind: "error", text: error.message };
-    render();
+    setInlineFormFeedback(form, "error", error.message);
     return;
   }
 
   state.auth.pending = "save";
-  state.formFeedback = { kind: "info", text: "\uBD80\uC2A4 \uAE30\uB85D\uC744 \uC800\uC7A5\uD558\uACE0 \uC810\uC218\uD45C\uB97C \uAC31\uC2E0\uD558\uB294 \uC911\uC785\uB2C8\uB2E4." };
-  render();
+  let shouldRender = false;
+  setInlineFormFeedback(form, "info", "\uBD80\uC2A4 \uAE30\uB85D\uC744 \uC800\uC7A5\uD558\uB294 \uC911\uC785\uB2C8\uB2E4.");
+  setSubmitBusy(form, true, "\uC800\uC7A5 \uC911");
 
   try {
     const { error } = await withTimeout(
@@ -1063,12 +1098,14 @@ async function handleBoothSubmit(form) {
       10000,
       "\uC800\uC7A5\uC740 \uC644\uB8CC\uB410\uC9C0\uB9CC \uCD5C\uC2E0 \uB370\uC774\uD130 \uC7AC\uC870\uD68C\uAC00 \uC9C0\uC5F0\uB418\uC5C8\uC2B5\uB2C8\uB2E4. \uC0C8\uB85C\uACE0\uCE68\uD558\uBA74 \uCD5C\uC2E0 \uC0C1\uD0DC\uB97C \uBCFC \uC218 \uC788\uC2B5\uB2C8\uB2E4.",
     );
+    shouldRender = true;
   } catch (error) {
-    state.formFeedback = { kind: "error", text: error.message };
+    setInlineFormFeedback(form, "error", error.message);
   } finally {
     state.auth.pending = null;
     state.loading = false;
-    render();
+    if (shouldRender) render();
+    else setSubmitBusy(form, false);
   }
 }
 
@@ -1111,13 +1148,13 @@ async function handleManualAdvancementSubmit(form) {
   const game = getGame(state.adminFormId);
   const options = game ? getQualifierWinnerOptions(game) : [];
   const groupKey = form.dataset.groupKey;
-  const betterTeamId = readTextField(form, "better_team_id");
-  const weakerTeamId = options.find((option) => option.teamId !== betterTeamId)?.teamId ?? "";
+  const weakerTeamId = readTextField(form, "weaker_team_id");
+  const betterTeamId = options.find((option) => option.teamId !== weakerTeamId)?.teamId ?? "";
 
   if (!groupKey || !betterTeamId || !weakerTeamId) {
     state.formFeedback = {
       kind: "error",
-      text: "\uACB0\uC2B9 \uC9C1\uD589 \uD300\uC744 \uC120\uD0DD\uD574 \uC8FC\uC138\uC694.",
+      text: "\uBD80\uACB0\uC2B9\uC73C\uB85C \uBCF4\uB0BC \uD300\uC744 \uC120\uD0DD\uD574 \uC8FC\uC138\uC694.",
     };
     render();
     return;
@@ -1156,18 +1193,62 @@ async function handleManualAdvancementSubmit(form) {
   }
 }
 
+function getMenuTabs() {
+  if (!isLoggedIn()) return [];
+
+  if (isSuperAdmin()) {
+    return [
+      { id: "dashboard", label: "\uB300\uC2DC\uBCF4\uB4DC", icon: "admin" },
+      { id: "forms", label: "\uACB0\uACFC \uAD00\uB9AC", icon: "chart" },
+      { id: "scoreboard", label: "\uC810\uC218\uD310", icon: "booth" },
+    ];
+  }
+
+  return [
+    { id: "dashboard", label: "\uB300\uC2DC\uBCF4\uB4DC", icon: "admin" },
+    { id: "assignments", label: "\uB0B4 \uD560\uC77C", icon: "list" },
+    { id: "scoreboard", label: "\uC810\uC218\uD310", icon: "booth" },
+  ];
+}
+
+function normalizeVisibleTab() {
+  if (!isLoggedIn()) return;
+
+  if (isSuperAdmin() && state.tab === "assignments") {
+    state.tab = "forms";
+  }
+}
+
+function renderMenuTabs() {
+  const menuTabs = getMenuTabs();
+  tabs.innerHTML = menuTabs
+    .map(
+      (tab) => `
+        <button class="tab-button" data-tab="${escapeHtml(tab.id)}" type="button">
+          <span class="tab-icon ${escapeHtml(tab.icon)}" aria-hidden="true"></span>
+          <span>${escapeHtml(tab.label)}</span>
+        </button>
+      `,
+    )
+    .join("");
+}
+
 function updateChrome() {
   tabs.classList.toggle("hidden", !isLoggedIn());
   app.classList.toggle("no-tabs", !isLoggedIn());
 
   if (!isLoggedIn()) {
-    topbarNote.textContent = state.loading ? "\uC5F0\uACB0 \uD655\uC778 \uC911" : "\uB85C\uADF8\uC778 \uD544\uC694";
+    topbarNote.textContent = state.loading ? "\uB85C\uB529 \uC911" : "\uB85C\uADF8\uC778";
     topbarActions.className = "topbar-actions";
     topbarActions.innerHTML = "";
+    tabs.innerHTML = "";
     return;
   }
 
-  topbarNote.textContent = isSuperAdmin() ? "\uB300\uD45C \uC6B4\uC601\uC9C4 \uD654\uBA74" : "\uC77C\uBC18 \uC6B4\uC601\uC9C4 \uD654\uBA74";
+  normalizeVisibleTab();
+  renderMenuTabs();
+
+  topbarNote.textContent = isSuperAdmin() ? "\uB300\uD45C" : "\uC6B4\uC601\uC9C4";
   topbarActions.className = "topbar-actions compact";
   topbarActions.innerHTML = `
     <div class="topbar-user">
@@ -1185,10 +1266,9 @@ function render() {
 
   if (state.loading) {
     app.innerHTML = `
-      <section class="hero-card">
-        <span class="hero-status">\uC5F0\uACB0 \uC911</span>
-        <h2 class="hero-title">Supabase\uC640 \uAD00\uB9AC\uC790 \uC815\uBCF4\uB97C \uBD88\uB7EC\uC624\uB294 \uC911\uC785\uB2C8\uB2E4.</h2>
-        <p class="hero-meta">\uB85C\uADF8\uC778 \uC0C1\uD0DC, \uC6B4\uC601\uC9C4 \uAD8C\uD55C, \uB2F4\uB2F9 \uACBD\uAE30 \uBC30\uC815\uC744 \uD655\uC778\uD558\uACE0 \uC788\uC2B5\uB2C8\uB2E4.</p>
+      <section class="loading-card">
+        <span class="loading-dot" aria-hidden="true"></span>
+        <strong>\uBD88\uB7EC\uC624\uB294 \uC911</strong>
       </section>
     `;
     return;
@@ -1214,16 +1294,9 @@ function renderAuthGate() {
 
   app.innerHTML = `
     <section class="auth-stack">
-      <section class="hero-card">
-        <span class="hero-status">\uAD00\uB9AC\uC790 \uB85C\uADF8\uC778</span>
-        <h2 class="hero-title">\uC6B4\uC601\uC9C4 \uACC4\uC815\uC73C\uB85C \uB85C\uADF8\uC778\uD569\uB2C8\uB2E4.</h2>
-        <p class="hero-meta">\uC774 \uD398\uC774\uC9C0\uB294 \uCF54\uB4DC\uC5D0 \uACE0\uC815\uB41C Supabase \uD504\uB85C\uC81D\uD2B8\uC5D0 \uC5F0\uACB0\uB418\uC5B4 \uC788\uC2B5\uB2C8\uB2E4. \uC6B4\uC601\uC9C4 \uC774\uBA54\uC77C\uACFC \uBE44\uBC00\uBC88\uD638\uB85C\uB9CC \uB85C\uADF8\uC778\uD558\uBA74 \uB429\uB2C8\uB2E4.</p>
-      </section>
-
       <form class="form-card" data-auth-form="login">
         <div class="section-title">
-          <h2>\uACC4\uC815 \uB85C\uADF8\uC778</h2>
-          <p>Supabase Auth</p>
+          <h2>\uB85C\uADF8\uC778</h2>
         </div>
         <div class="form-grid">
           <div class="field">
@@ -1235,11 +1308,9 @@ function renderAuthGate() {
             <input name="password" type="password" placeholder="\uBE44\uBC00\uBC88\uD638 \uC785\uB825" />
           </div>
         </div>
-        <div class="auth-status ${state.auth.error ? "error" : ""}">
-          ${escapeHtml(state.auth.error || "\uC6B4\uC601\uC9C4 \uACC4\uC815\uC73C\uB85C \uB85C\uADF8\uC778\uD574\uC8FC\uC138\uC694. \uD14C\uC2A4\uD2B8\uB97C \uC704\uD574 \uB2E4\uB978 \uACC4\uC815\uC73C\uB85C \uBC14\uAFB8\uACE0 \uC2F6\uC73C\uBA74 \uBA3C\uC800 \uB85C\uADF8\uC544\uC6C3\uD558\uBA74 \uB429\uB2C8\uB2E4.")}
-        </div>
+        ${state.auth.error ? `<div class="auth-status error">${escapeHtml(state.auth.error)}</div>` : ""}
         <div class="action-row">
-          <button class="text-button" type="submit" ${loginBusy ? "disabled" : ""}>
+          <button class="text-button primary-submit-button" type="submit" ${loginBusy ? "disabled" : ""}>
             ${loginBusy ? "\uB85C\uADF8\uC778 \uC911" : "\uB85C\uADF8\uC778"}
           </button>
         </div>
@@ -1256,6 +1327,34 @@ function getScoreboardPointSources() {
   return Array.isArray(state.scoreboard?.point_sources) ? state.scoreboard.point_sources : [];
 }
 
+function normalizeScoreSourceTitle(source) {
+  const rawTitle = String(source?.source_title ?? source?.reason ?? source?.source_type ?? "").trim();
+  if (!rawTitle) return "\uC810\uC218";
+
+  if (source?.source_type === "booth") return rawTitle;
+
+  return rawTitle
+    .replace(/\s+\uC608\uC120\s*\d+.*$/, "")
+    .replace(/\s+\uBD80\uACB0\uC2B9.*$/, "")
+    .replace(/\s+\uACB0\uC2B9.*$/, "")
+    .replace(/\s+\d+\uC704.*$/, "")
+    .replace(/\s+\uCC38\uAC00.*$/, "")
+    .trim() || rawTitle;
+}
+
+function formatScoreSourceDetail(source, title) {
+  const reason = String(source?.reason ?? "").trim();
+  if (!reason) return "";
+
+  const rawTitle = String(source?.source_title ?? "").trim();
+  let detail = reason;
+  [title, rawTitle].filter(Boolean).forEach((prefix) => {
+    if (detail.startsWith(prefix)) detail = detail.slice(prefix.length).trim();
+  });
+
+  return detail || reason;
+}
+
 function renderScoreboardCard({ showSources = false } = {}) {
   const rankings = getScoreboardRankings();
 
@@ -1264,7 +1363,6 @@ function renderScoreboardCard({ showSources = false } = {}) {
       <div class="row-head">
         <div>
           <h3>\uC885\uD569 \uC810\uC218\uD45C</h3>
-          <p class="description">\uACBD\uAE30\uC640 \uC810\uC218 \uBD80\uC2A4\uAC00 \uBC18\uC601\uB41C \uD604\uC7AC \uD300 \uC21C\uC704\uC785\uB2C8\uB2E4.</p>
         </div>
         <span class="pill live">${rankings.length}\uD300</span>
       </div>
@@ -1279,7 +1377,6 @@ function renderScoreboardCard({ showSources = false } = {}) {
                         <span class="rank">${escapeHtml(row.rank_order)}</span>
                         <div>
                           <strong>${escapeHtml(row.team_name)}</strong>
-                          <p class="description">${escapeHtml((row.sources ?? []).length)}\uAC1C \uC810\uC218 \uD56D\uBAA9 \uBC18\uC601</p>
                         </div>
                         <span class="score">${escapeHtml(row.total_points)}\uC810</span>
                       </button>
@@ -1289,15 +1386,19 @@ function renderScoreboardCard({ showSources = false } = {}) {
                             <div class="score-source-list">
                               ${(row.sources ?? [])
                                 .map(
-                                  (source) => `
-                                    <div class="row-split score-source-row">
-                                      <div>
-                                        <strong>${escapeHtml(source.source_title ?? source.reason ?? source.source_type)}</strong>
-                                        <p class="description">${escapeHtml(source.reason ?? source.source_type)}</p>
+                                  (source) => {
+                                    const sourceTitle = normalizeScoreSourceTitle(source);
+                                    const sourceDetail = formatScoreSourceDetail(source, sourceTitle);
+                                    return `
+                                      <div class="row-split score-source-row">
+                                        <div class="score-source-main">
+                                          <strong>${escapeHtml(sourceTitle)}</strong>
+                                          ${sourceDetail ? `<p class="description">${escapeHtml(sourceDetail)}</p>` : ""}
+                                        </div>
+                                        <span class="score source-score">${escapeHtml(source.points)}\uC810</span>
                                       </div>
-                                      <span class="score">${escapeHtml(source.points)}\uC810</span>
-                                    </div>
-                                  `,
+                                    `;
+                                  },
                                 )
                                 .join("")}
                             </div>
@@ -1311,7 +1412,6 @@ function renderScoreboardCard({ showSources = false } = {}) {
             : `<div class="empty-state">\uC544\uC9C1 \uC810\uC218 \uB370\uC774\uD130\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4.</div>`
         }
       </div>
-      ${showSources ? `<p class="helper-text">\uD300 \uD589\uC744 \uB204\uB974\uBA74 \uC810\uC218 \uCD9C\uCC98\uAC00 \uD3BC\uCCD0\uC9D1\uB2C8\uB2E4.</p>` : ""}
     </article>
   `;
 }
@@ -1379,7 +1479,6 @@ function renderAssignments() {
     <div class="section-title">
       <div>
         <h2>\uB0B4 \uD560 \uC77C</h2>
-        <p>\uBBF8\uC785\uB825 \uD56D\uBAA9\uC744 \uBA3C\uC800 \uBCF4\uC5EC\uC8FC\uACE0, \uC785\uB825 \uC644\uB8CC \uD56D\uBAA9\uC740 \uC544\uB798\uC5D0\uC11C \uC218\uC815\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4.</p>
       </div>
     </div>
 
@@ -1442,7 +1541,6 @@ function renderAssignedGameCard(game) {
         </div>
         <span class="pill ${readiness.ready ? "live" : "alert"}">${escapeHtml(statusLabel)}</span>
       </div>
-      <p class="description">${escapeHtml(game.summary)}</p>
       ${
         readiness.ready
           ? ""
@@ -1465,7 +1563,6 @@ function renderAssignedBoothCard(booth) {
         </div>
         <span class="pill ${statusClass(getBoothStatus(booth))}">${escapeHtml(getBoothStatus(booth))}</span>
       </div>
-      <p class="description">${escapeHtml(booth.summary)}</p>
       <div class="action-row">
         <button class="text-button" data-open-form="${escapeHtml(booth.id)}" type="button">${isScoringBooth(booth) ? "\uAE30\uB85D \uC785\uB825" : "\uC0C1\uD0DC \uC785\uB825"}</button>
       </div>
@@ -1575,7 +1672,7 @@ function renderStartPanel(item, type) {
       </div>
       ${
         readiness.ready
-          ? `<p class="helper-text">\uC2DC\uC791 \uBC84\uD2BC\uC744 \uB204\uB974\uBA74 \uD559\uC0DD \uD654\uBA74\uC5D0 \uC9C4\uD589 \uC0C1\uD0DC\uAC00 \uBC18\uC601\uB418\uACE0, \uC774\uD6C4 \uACB0\uACFC \uC785\uB825 \uD3FC\uC774 \uC5F4\uB9BD\uB2C8\uB2E4.</p>`
+          ? ""
           : `<div class="todo-alert">${escapeHtml(readiness.reason)}<br />${escapeHtml(readiness.dependsOn.join(" / "))}</div>`
       }
       <div class="action-row">
@@ -1598,12 +1695,11 @@ function renderManualAdvancementPanel(game) {
   return `
     <form class="info-panel" data-manual-advancement-form data-group-key="${escapeHtml(groupKey)}">
       <h4>\uC218\uB3D9 \uB300\uC9C4 \uACB0\uC815</h4>
-      <p class="helper-text">\uC608\uC120 \uC2B9\uC790 \uBE44\uAD50\uAC00 \uB3D9\uB960\uC774\uBA74 \uB300\uD45C \uC6B4\uC601\uC9C4\uC774 \uACB0\uC2B9 \uC9C1\uD589 \uD300\uC744 \uC9C1\uC811 \uC120\uD0DD\uD569\uB2C8\uB2E4.</p>
       ${renderFormFeedback()}
       <div class="form-grid">
         <div class="field">
-          <label>\uACB0\uC2B9 \uC9C1\uD589 \uD300</label>
-          <select name="better_team_id" required>
+          <label>\uBD80\uACB0\uC2B9 \uC9C4\uCD9C \uD300</label>
+          <select name="weaker_team_id" required>
             <option value="">\uC120\uD0DD</option>
             ${options
               .map(
@@ -1617,10 +1713,9 @@ function renderManualAdvancementPanel(game) {
           </select>
         </div>
       </div>
-      <p class="helper-text">\uC120\uD0DD\uD558\uC9C0 \uC54A\uC740 \uB2E4\uB978 \uC608\uC120 \uC2B9\uC790\uB294 \uBD80\uACB0\uC2B9 left\uB85C \uBC30\uC815\uB429\uB2C8\uB2E4.</p>
       <div class="action-row">
         <button class="text-button" type="submit" ${busy ? "disabled" : ""}>
-          ${busy ? "\uBC30\uC815 \uC911" : "\uB300\uC9C4 \uC218\uB3D9 \uBC30\uC815"}
+          ${busy ? "\uBC30\uC815 \uC911" : "\uBC30\uC815"}
         </button>
       </div>
     </form>
@@ -1658,8 +1753,7 @@ function renderForms() {
   app.innerHTML = `
     <div class="section-title">
       <div>
-        <h2>\uACB0\uACFC \uC785\uB825</h2>
-        <p>\uC885\uBAA9\uBCC4\uB85C \uD56D\uBAA9\uC744 \uC5F4\uACE0, \uC2DC\uC791 \uD6C4 \uACB0\uACFC\uB97C \uC785\uB825\uD569\uB2C8\uB2E4.</p>
+        <h2>\uACB0\uACFC \uAD00\uB9AC</h2>
       </div>
       ${
         state.adminFormId
@@ -1679,7 +1773,7 @@ function renderForms() {
 function renderFormFeedback() {
   if (!state.formFeedback.text) return "";
   return `
-    <div class="auth-status ${state.formFeedback.kind === "error" ? "error" : ""}">
+    <div class="auth-status ${state.formFeedback.kind === "error" ? "error" : ""}" data-inline-form-feedback>
       ${escapeHtml(state.formFeedback.text)}
     </div>
   `;
@@ -1687,6 +1781,31 @@ function renderFormFeedback() {
 
 function inputValue(value) {
   return value === null || value === undefined ? "" : value;
+}
+
+function areRegularScoresTied(form) {
+  const leftRaw = String(form.elements.left_score?.value ?? "").trim();
+  const rightRaw = String(form.elements.right_score?.value ?? "").trim();
+  if (!leftRaw || !rightRaw) return false;
+
+  const left = Number(leftRaw);
+  const right = Number(rightRaw);
+  return Number.isFinite(left) && Number.isFinite(right) && left === right;
+}
+
+function syncTiebreakVisibility(form) {
+  const panel = form?.querySelector("[data-tiebreak-panel]");
+  if (!panel) return;
+
+  const shouldShow = areRegularScoresTied(form);
+  const canEdit = form.dataset.ready === "true";
+  panel.hidden = !shouldShow;
+
+  panel.querySelectorAll("input").forEach((input) => {
+    input.disabled = !shouldShow || !canEdit;
+    input.required = shouldShow && canEdit;
+    if (!shouldShow) input.value = "";
+  });
 }
 
 function renderMatchSummary(result) {
@@ -1720,14 +1839,19 @@ function renderScoreGameForm(game, result, readiness) {
   const saveBusy = state.auth.pending === "save";
   const tiebreakLabel = game.sport === "\uB18D\uAD6C" ? "\uC790\uC720\uD22C" : "\uC2B9\uBD80\uCC28\uAE30";
   const readinessLabel = readiness.ready ? "\uC785\uB825 \uAC00\uB2A5" : "\uB300\uC9C4 \uBBF8\uC644\uC131";
+  const showTiebreak =
+    result?.leftScore !== null &&
+    result?.leftScore !== undefined &&
+    result?.rightScore !== null &&
+    result?.rightScore !== undefined &&
+    result.leftScore === result.rightScore;
 
   return `
-    <form class="form-card" data-result-form="score" data-game-id="${escapeHtml(game.id)}">
+    <form class="form-card" data-result-form="score" data-score-game-form data-ready="${readiness.ready ? "true" : "false"}" data-game-id="${escapeHtml(game.id)}">
       <div class="row-head">
         <div>
           <h2>${escapeHtml(game.title)}</h2>
           <p class="time">${escapeHtml(formatRange(game.start, game.end))} · ${escapeHtml(game.location)}</p>
-          <p class="description">${escapeHtml(game.summary)}</p>
         </div>
         <span class="pill ${readiness.ready ? "live" : "alert"}">${escapeHtml(readinessLabel)}</span>
       </div>
@@ -1741,30 +1865,25 @@ function renderScoreGameForm(game, result, readiness) {
       <div class="form-grid two">
         <div class="field">
           <label>${escapeHtml(getTeamName(result?.leftTeamId))} \uC815\uADDC \uC810\uC218</label>
-          <input name="left_score" type="number" min="0" inputmode="numeric" value="${escapeHtml(inputValue(result?.leftScore))}" ${readiness.ready ? "required" : "disabled"} />
+          <input name="left_score" data-score-input type="number" min="0" inputmode="numeric" value="${escapeHtml(inputValue(result?.leftScore))}" ${readiness.ready ? "required" : "disabled"} />
         </div>
         <div class="field">
           <label>${escapeHtml(getTeamName(result?.rightTeamId))} \uC815\uADDC \uC810\uC218</label>
-          <input name="right_score" type="number" min="0" inputmode="numeric" value="${escapeHtml(inputValue(result?.rightScore))}" ${readiness.ready ? "required" : "disabled"} />
+          <input name="right_score" data-score-input type="number" min="0" inputmode="numeric" value="${escapeHtml(inputValue(result?.rightScore))}" ${readiness.ready ? "required" : "disabled"} />
         </div>
       </div>
-      <div class="form-grid two">
+      <div class="form-grid two" data-tiebreak-panel ${showTiebreak ? "" : "hidden"}>
         <div class="field">
           <label>${escapeHtml(getTeamName(result?.leftTeamId))} ${tiebreakLabel}</label>
-          <input name="left_tiebreak_score" type="number" min="0" inputmode="numeric" value="${escapeHtml(inputValue(result?.leftTiebreakScore))}" ${readiness.ready ? "" : "disabled"} />
+          <input name="left_tiebreak_score" type="number" min="0" inputmode="numeric" value="${escapeHtml(inputValue(result?.leftTiebreakScore))}" ${readiness.ready && showTiebreak ? "required" : "disabled"} />
         </div>
         <div class="field">
           <label>${escapeHtml(getTeamName(result?.rightTeamId))} ${tiebreakLabel}</label>
-          <input name="right_tiebreak_score" type="number" min="0" inputmode="numeric" value="${escapeHtml(inputValue(result?.rightTiebreakScore))}" ${readiness.ready ? "" : "disabled"} />
+          <input name="right_tiebreak_score" type="number" min="0" inputmode="numeric" value="${escapeHtml(inputValue(result?.rightTiebreakScore))}" ${readiness.ready && showTiebreak ? "required" : "disabled"} />
         </div>
       </div>
-      <p class="helper-text">\uC815\uADDC \uC810\uC218\uAC00 \uB3D9\uC810\uC774\uBA74 ${escapeHtml(tiebreakLabel)} \uC810\uC218\uB97C \uBC18\uB4DC\uC2DC \uC785\uB825\uD558\uACE0, \uB3D9\uC810\uC774 \uC544\uB2C8\uBA74 \uBE44\uC6CC\uB450\uBA74 \uB429\uB2C8\uB2E4.</p>
-      <div class="field">
-        <label>\uBA54\uBAA8</label>
-        <textarea name="note" ${readiness.ready ? "" : "disabled"}>${escapeHtml(result?.note ?? "")}</textarea>
-      </div>
       <div class="action-row">
-        <button class="text-button" type="submit" ${readiness.ready && !saveBusy ? "" : "disabled"}>
+        <button class="text-button primary-submit-button" type="submit" ${readiness.ready && !saveBusy ? "" : "disabled"}>
           ${saveBusy ? "\uC800\uC7A5 \uC911" : "\uACB0\uACFC \uC800\uC7A5"}
         </button>
       </div>
@@ -1805,7 +1924,6 @@ function renderRopeGameForm(game, result, readiness) {
         <div>
           <h2>${escapeHtml(game.title)}</h2>
           <p class="time">${escapeHtml(formatRange(game.start, game.end))} · ${escapeHtml(game.location)}</p>
-          <p class="description">${escapeHtml(game.summary)}</p>
         </div>
         <span class="pill ${readiness.ready ? "live" : "alert"}">${escapeHtml(readinessLabel)}</span>
       </div>
@@ -1816,14 +1934,9 @@ function renderRopeGameForm(game, result, readiness) {
       }
       ${renderMatchSummary(result)}
       ${renderFormFeedback()}
-      <p class="helper-text">2:0\uC774\uBA74 1, 2\uC138\uD2B8\uB9CC \uC785\uB825\uD558\uACE0, 2:1\uC774\uBA74 3\uC138\uD2B8\uAE4C\uC9C0 \uC785\uB825\uD569\uB2C8\uB2E4. \uC2DC\uAC04\uC740 \uCD08 \uB2E8\uC704\uB85C \uB123\uC5B4\uC8FC\uC138\uC694.</p>
       ${setRows}
-      <div class="field">
-        <label>\uBA54\uBAA8</label>
-        <textarea name="note" ${readiness.ready ? "" : "disabled"}>${escapeHtml(result?.note ?? "")}</textarea>
-      </div>
       <div class="action-row">
-        <button class="text-button" type="submit" ${readiness.ready && !saveBusy ? "" : "disabled"}>
+        <button class="text-button primary-submit-button" type="submit" ${readiness.ready && !saveBusy ? "" : "disabled"}>
           ${saveBusy ? "\uC800\uC7A5 \uC911" : "\uACB0\uACFC \uC800\uC7A5"}
         </button>
       </div>
@@ -1860,7 +1973,6 @@ function renderDodgeballGameForm(game, result, readiness) {
         <div>
           <h2>${escapeHtml(game.title)}</h2>
           <p class="time">${escapeHtml(formatRange(game.start, game.end))} · ${escapeHtml(game.location)}</p>
-          <p class="description">${escapeHtml(game.summary)}</p>
         </div>
         <span class="pill ${readiness.ready ? "live" : "alert"}">${escapeHtml(readinessLabel)}</span>
       </div>
@@ -1871,14 +1983,9 @@ function renderDodgeballGameForm(game, result, readiness) {
       }
       ${renderMatchSummary(result)}
       ${renderFormFeedback()}
-      <p class="helper-text">\uAC01 \uC138\uD2B8\uB9C8\uB2E4 \uC591\uCABD \uC0DD\uC874\uC790 \uC218\uB97C \uC785\uB825\uD569\uB2C8\uB2E4. \uC0DD\uC874\uC790\uAC00 \uB354 \uB9CE\uC740 \uD300\uC774 \uADF8 \uC138\uD2B8\uB97C \uAC00\uC838\uAC00\uACE0, 2\uC138\uD2B8\uB97C \uBA3C\uC800 \uC774\uAE34 \uD300\uC774 \uACBD\uAE30 \uC2B9\uC790\uAC00 \uB429\uB2C8\uB2E4.</p>
       ${setRows}
-      <div class="field">
-        <label>\uBA54\uBAA8</label>
-        <textarea name="note" ${readiness.ready ? "" : "disabled"}>${escapeHtml(result?.note ?? "")}</textarea>
-      </div>
       <div class="action-row">
-        <button class="text-button" type="submit" ${readiness.ready && !saveBusy ? "" : "disabled"}>
+        <button class="text-button primary-submit-button" type="submit" ${readiness.ready && !saveBusy ? "" : "disabled"}>
           ${saveBusy ? "\uC800\uC7A5 \uC911" : "\uACB0\uACFC \uC800\uC7A5"}
         </button>
       </div>
@@ -1914,19 +2021,13 @@ function renderRelayGameForm(game, readiness) {
         <div>
           <h2>${escapeHtml(game.title)}</h2>
           <p class="time">${escapeHtml(formatRange(game.start, game.end))} · ${escapeHtml(game.location)}</p>
-          <p class="description">\uACC4\uC8FC\uB294 1\uB3001 \uB300\uC9C4\uC774 \uC544\uB2C8\uB77C \uC804\uCCB4 \uD559\uBC88 \uB4F1\uC218\uB85C \uC800\uC7A5\uD569\uB2C8\uB2E4.</p>
         </div>
         <span class="pill live">\uC785\uB825 \uAC00\uB2A5</span>
       </div>
       ${renderFormFeedback()}
-      <p class="helper-text">\uBAA8\uB4E0 \uD559\uBC88\uC758 \uB4F1\uC218\uB97C \uD55C \uBC88\uC5D0 \uC785\uB825\uD574\uC57C \uD569\uB2C8\uB2E4. \uB4F1\uC218\uAC00 \uC911\uBCF5\uB418\uBA74 \uC800\uC7A5\uB418\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.</p>
       ${rows}
-      <div class="field">
-        <label>\uBA54\uBAA8</label>
-        <textarea name="note">${escapeHtml(getGameResult(game.id)?.note ?? "")}</textarea>
-      </div>
       <div class="action-row">
-        <button class="text-button" type="submit" ${readiness.ready && !saveBusy ? "" : "disabled"}>
+        <button class="text-button primary-submit-button" type="submit" ${readiness.ready && !saveBusy ? "" : "disabled"}>
           ${saveBusy ? "\uC800\uC7A5 \uC911" : "\uACB0\uACFC \uC800\uC7A5"}
         </button>
       </div>
@@ -2047,19 +2148,10 @@ function renderBoothScoresForm(booth) {
         <div>
           <h2>${escapeHtml(booth.name)}</h2>
           <p class="time">${escapeHtml(booth.location)}</p>
-          <p class="description">${escapeHtml(booth.summary)}</p>
         </div>
         <span class="pill ${statusClass(getBoothStatus(booth))}">${escapeHtml(getBoothStatus(booth))}</span>
       </div>
       ${renderFormFeedback()}
-      <p class="helper-text">
-        ${
-          unit === "kg"
-            ? "\uB370\uB4DC\uB9AC\uD504\uD2B8/\uC6E8\uC774\uD2B8\uB294 \uD300\uBCC4 \uCD5C\uACE0 \uAE30\uB85D\uC73C\uB85C \uC810\uC218\uD45C\uB97C \uACC4\uC0B0\uD569\uB2C8\uB2E4."
-            : "\uC2E0\uBC1C \uB358\uC9C0\uAE30\uB294 \uAC1C\uC778 \uC810\uC218\uB97C \uC800\uC7A5\uD558\uACE0 \uD559\uBC88 \uD300\uBCC4 \uD569\uACC4\uB85C \uC810\uC218\uD45C\uB97C \uACC4\uC0B0\uD569\uB2C8\uB2E4."
-        }
-        \uD55C \uBA85\uC529 \uC800\uC7A5\uD558\uBA74 \uAE30\uC874 \uAE30\uB85D\uC5D0 \uB204\uC801\uB418\uACE0, \uC810\uC218\uD45C\uB294 \uB9E4\uBC88 \uB2E4\uC2DC \uACC4\uC0B0\uB429\uB2C8\uB2E4.
-      </p>
       ${
         isEditingCurrentBooth
           ? `
@@ -2072,7 +2164,7 @@ function renderBoothScoresForm(booth) {
       }
       ${renderBoothScoreRows(booth)}
       <div class="action-row">
-        <button class="text-button" type="submit" ${saveBusy ? "disabled" : ""}>
+        <button class="text-button primary-submit-button" type="submit" ${saveBusy ? "disabled" : ""}>
           ${submitLabel}
         </button>
       </div>
@@ -2096,7 +2188,6 @@ function renderBoothSessionForm(booth) {
         <div>
           <h2>${escapeHtml(booth.name)}</h2>
           <p class="time">${escapeHtml(booth.location)}</p>
-          <p class="description">${escapeHtml(booth.summary)}</p>
         </div>
         <span class="pill ${statusClass(getBoothStatus(booth))}">${escapeHtml(getBoothStatus(booth))}</span>
       </div>
@@ -2129,7 +2220,6 @@ function renderScoreboardPage() {
     <div class="section-title">
       <div>
         <h2>\uC810\uC218\uD45C</h2>
-        <p>\uD604\uC7AC\uAE4C\uC9C0 \uBC18\uC601\uB41C \uC885\uD569 \uC21C\uC704\uC640 \uC810\uC218 \uCD9C\uCC98\uC785\uB2C8\uB2E4.</p>
       </div>
     </div>
 
@@ -2208,6 +2298,13 @@ function tabButtons() {
   return [...tabs.querySelectorAll(".tab-button")];
 }
 
+function returnToFormList() {
+  state.adminFormId = null;
+  state.editingBoothScoreId = null;
+  state.formFeedback = { kind: "", text: "" };
+  if (!isSuperAdmin()) state.tab = "assignments";
+}
+
 document.addEventListener("click", async (event) => {
   const tabButton = event.target.closest("[data-tab]");
   if (tabButton && isLoggedIn()) {
@@ -2240,9 +2337,7 @@ document.addEventListener("click", async (event) => {
   }
 
   if (event.target.closest("[data-back-to-form-list]") && isLoggedIn()) {
-    state.adminFormId = null;
-    state.editingBoothScoreId = null;
-    state.formFeedback = { kind: "", text: "" };
+    returnToFormList();
     render();
     return;
   }
@@ -2283,6 +2378,12 @@ document.addEventListener("click", async (event) => {
   if (event.target.closest("[data-logout]")) {
     await handleLogout();
   }
+});
+
+document.addEventListener("input", (event) => {
+  if (!event.target.closest("[data-score-input]")) return;
+  const form = event.target.closest("[data-score-game-form]");
+  syncTiebreakVisibility(form);
 });
 
 document.addEventListener("submit", async (event) => {

@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="ko">
   <head>
     <meta charset="utf-8" />
@@ -11,7 +11,7 @@
       <header class="topbar">
         <div>
           <h1>운영 관리</h1>
-          <p id="admin-topbar-note" class="topbar-note">로그인 전</p>
+          <p id="admin-topbar-note" class="topbar-note">로그인</p>
         </div>
 
         <div id="admin-topbar-actions" class="topbar-actions"></div>
@@ -19,24 +19,7 @@
 
       <main id="admin-app" class="screen" aria-live="polite"></main>
 
-      <nav id="admin-tabs" class="bottom-tabs admin" aria-label="관리자 화면">
-        <button class="tab-button active" data-tab="dashboard" type="button">
-          <span class="tab-icon admin" aria-hidden="true"></span>
-          <span>대시보드</span>
-        </button>
-        <button class="tab-button" data-tab="assignments" type="button">
-          <span class="tab-icon list" aria-hidden="true"></span>
-          <span>내 할 일</span>
-        </button>
-        <button class="tab-button" data-tab="forms" type="button">
-          <span class="tab-icon chart" aria-hidden="true"></span>
-          <span>결과 입력</span>
-        </button>
-        <button class="tab-button" data-tab="scoreboard" type="button">
-          <span class="tab-icon booth" aria-hidden="true"></span>
-          <span>점수판</span>
-        </button>
-      </nav>
+      <nav id="admin-tabs" class="bottom-tabs admin hidden" aria-label="관리자 화면"></nav>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
