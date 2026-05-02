@@ -1,0 +1,13 @@
+[build]
+  command = """
+    rm -rf dist
+    mkdir -p dist
+    cp index.html admin.html app.js admin.js data.js styles.css dist/
+    cp -R assets dist/assets
+  """
+  publish = "dist"
+
+[[redirects]]
+  from = "/admin"
+  to = "/admin.html"
+  status = 200
