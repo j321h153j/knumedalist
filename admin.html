@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>행운제 관리자 MVP</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">행운제 Admin MVP</p>
+          <h1>운영 대시보드</h1>
+          <p id="admin-topbar-note" class="topbar-note">로그인 전</p>
+        </div>
+
+        <div id="admin-topbar-actions" class="topbar-actions"></div>
+      </header>
+
+      <main id="admin-app" class="screen" aria-live="polite"></main>
+
+      <nav id="admin-tabs" class="bottom-tabs admin" aria-label="관리자 화면">
+        <button class="tab-button active" data-tab="dashboard" type="button">
+          <span class="tab-icon admin" aria-hidden="true"></span>
+          <span>대시보드</span>
+        </button>
+        <button class="tab-button" data-tab="assignments" type="button">
+          <span class="tab-icon list" aria-hidden="true"></span>
+          <span>내 할 일</span>
+        </button>
+        <button class="tab-button" data-tab="forms" type="button">
+          <span class="tab-icon chart" aria-hidden="true"></span>
+          <span>결과 입력</span>
+        </button>
+        <button class="tab-button" data-tab="overview" type="button">
+          <span class="tab-icon booth" aria-hidden="true"></span>
+          <span>전체 현황</span>
+        </button>
+      </nav>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="./data.js"></script>
+    <script src="./admin.js"></script>
+  </body>
+</html>
