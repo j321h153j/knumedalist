@@ -1,7 +1,7 @@
 [build]
-  command = "npm install && npm run build && cp admin.html admin.js styles.css data.js dist/"
+  command = "rm -rf dist && mkdir -p dist && cp index.html admin.html app.js admin.js data.js styles.css dist/ && cp -R assets dist/assets || true"
   publish = "dist"
-
+  
 [[redirects]]
   from = "/admin"
   to = "/admin.html"
