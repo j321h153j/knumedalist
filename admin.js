@@ -31,6 +31,7 @@ const state = {
   gameResults: [],
   resultSets: [],
   gameRankings: [],
+  scoreboard: null,
   formFeedback: {
     kind: "",
     text: "",
@@ -101,6 +102,7 @@ function clearAdminState() {
   state.gameResults = [];
   state.resultSets = [];
   state.gameRankings = [];
+  state.scoreboard = null;
   state.formFeedback = { kind: "", text: "" };
 }
 
@@ -293,64 +295,12 @@ async function loadAdminContext({ silent = false } = {}) {
   const requestId = ++state.auth.contextRequestId;
   const loadPromise = (async () => {
     try {
-      const [
-        adminResponse,
-        assignmentsResponse,
-        gamesResponse,
-        boothsResponse,
-        teamsResponse,
-        gameResultsResponse,
-        resultSetsResponse,
-        gameRankingsResponse,
-      ] = await Promise.all([
-        state.auth.client
-          .from("admins")
-          .select("id, name, email, role, auth_user_id, is_active")
-          .eq("auth_user_id", userId)
-          .maybeSingle(),
-        state.auth.client
-          .from("admin_assignments")
-          .select("id, admin_id, game_id, booth_id, assignment_role, is_active"),
-        state.auth.client
-          .from("games")
-          .select("*")
-          .order("scheduled_start_time", { ascending: true }),
-        state.auth.client
-          .from("booths")
-          .select("*")
-          .order("scheduled_start_time", { ascending: true }),
-        state.auth.client
-          .from("teams")
-          .select("id, name, display_order, is_active")
-          .eq("is_active", true)
-          .order("display_order", { ascending: true }),
-        state.auth.client
-          .from("game_results")
-          .select(
-            "id, game_id, left_team_id, right_team_id, left_score, right_score, winner_team_id, tiebreak_type, left_tiebreak_score, right_tiebreak_score, note",
-          ),
-        state.auth.client
-          .from("game_result_sets")
-          .select("id, game_result_id, set_number, left_score, right_score, duration_seconds, note")
-          .order("set_number", { ascending: true }),
-        state.auth.client
-          .from("game_rankings")
-          .select("id, game_id, team_id, rank_order, record_value, points_awarded, note")
-          .order("rank_order", { ascending: true }),
-      ]);
+      const { data: context, error: contextError } = await state.auth.client.rpc("get_admin_context");
 
       if (requestId !== state.auth.contextRequestId || state.auth.user?.id !== userId) return;
+      if (contextError) throw new Error(`get_admin_context 조회 실패: ${contextError.message}`);
 
-      if (adminResponse.error) throw new Error(`admins 조회 실패: ${adminResponse.error.message}`);
-      if (assignmentsResponse.error) throw new Error(`admin_assignments 조회 실패: ${assignmentsResponse.error.message}`);
-      if (gamesResponse.error) throw new Error(`games 조회 실패: ${gamesResponse.error.message}`);
-      if (boothsResponse.error) throw new Error(`booths 조회 실패: ${boothsResponse.error.message}`);
-      if (teamsResponse.error) throw new Error(`teams 조회 실패: ${teamsResponse.error.message}`);
-      if (gameResultsResponse.error) throw new Error(`game_results 조회 실패: ${gameResultsResponse.error.message}`);
-      if (resultSetsResponse.error) console.warn("game_result_sets 조회 실패:", resultSetsResponse.error.message);
-      if (gameRankingsResponse.error) console.warn("game_rankings 조회 실패:", gameRankingsResponse.error.message);
-
-      if (!adminResponse.data) {
+      if (!context?.ok) {
         clearAdminState();
         state.auth.error = "admins 테이블에서 현재 로그인 사용자와 연결된 운영진 정보를 찾지 못했습니다.";
         state.loading = false;
@@ -358,12 +308,12 @@ async function loadAdminContext({ silent = false } = {}) {
         return;
       }
 
-      const admin = adminResponse.data;
+      const admin = context.admin;
       const fallbackGameMap = new Map(fallbackGames.map((game) => [game.title, game]));
       const fallbackBoothMap = new Map(fallbackBooths.map((booth) => [booth.name, booth]));
 
       state.admin = admin;
-      state.games = (gamesResponse.data ?? []).map((row) => {
+      state.games = (context.games ?? []).map((row) => {
         const fallback = fallbackGameMap.get(row.title) ?? {};
         return {
           id: row.id,
@@ -380,7 +330,7 @@ async function loadAdminContext({ silent = false } = {}) {
         };
       });
 
-      state.booths = (boothsResponse.data ?? []).map((row) => {
+      state.booths = (context.booths ?? []).map((row) => {
         const fallback = fallbackBoothMap.get(row.name) ?? {};
         return {
           id: row.id,
@@ -398,14 +348,14 @@ async function loadAdminContext({ silent = false } = {}) {
         };
       });
 
-      state.teams = (teamsResponse.data ?? []).map((row) => ({
+      state.teams = (context.teams ?? []).map((row) => ({
         id: row.id,
         name: row.name,
         displayOrder: row.display_order,
         isActive: row.is_active,
       }));
 
-      state.gameResults = (gameResultsResponse.data ?? []).map((row) => ({
+      state.gameResults = (context.game_results ?? []).map((row) => ({
         id: row.id,
         gameId: row.game_id,
         leftTeamId: row.left_team_id,
@@ -419,7 +369,7 @@ async function loadAdminContext({ silent = false } = {}) {
         note: row.note ?? "",
       }));
 
-      state.resultSets = (resultSetsResponse.error ? [] : (resultSetsResponse.data ?? [])).map((row) => ({
+      state.resultSets = (context.game_result_sets ?? []).map((row) => ({
         id: row.id,
         gameResultId: row.game_result_id,
         setNumber: row.set_number,
@@ -429,7 +379,7 @@ async function loadAdminContext({ silent = false } = {}) {
         note: row.note ?? "",
       }));
 
-      state.gameRankings = (gameRankingsResponse.error ? [] : (gameRankingsResponse.data ?? [])).map((row) => ({
+      state.gameRankings = (context.game_rankings ?? []).map((row) => ({
         id: row.id,
         gameId: row.game_id,
         teamId: row.team_id,
@@ -439,7 +389,9 @@ async function loadAdminContext({ silent = false } = {}) {
         note: row.note ?? "",
       }));
 
-      state.assignments = (assignmentsResponse.data ?? [])
+      state.scoreboard = context.scoreboard ?? null;
+
+      state.assignments = (context.assignments ?? [])
         .filter((assignment) => assignment.admin_id === admin.id && assignment.is_active)
         .map((assignment) => ({
           id: assignment.id,

@@ -3,6 +3,132 @@ begin;
 alter table public.game_result_sets
   alter column duration_seconds drop not null;
 
+create index if not exists admins_auth_user_id_idx
+  on public.admins(auth_user_id);
+
+create index if not exists admin_assignments_admin_active_idx
+  on public.admin_assignments(admin_id, is_active);
+
+create index if not exists admin_assignments_game_id_idx
+  on public.admin_assignments(game_id);
+
+create index if not exists admin_assignments_booth_id_idx
+  on public.admin_assignments(booth_id);
+
+create index if not exists game_results_game_id_idx
+  on public.game_results(game_id);
+
+create index if not exists game_result_sets_result_id_idx
+  on public.game_result_sets(game_result_id);
+
+create index if not exists game_rankings_game_id_idx
+  on public.game_rankings(game_id);
+
+create index if not exists game_advancements_from_game_id_idx
+  on public.game_advancements(from_game_id);
+
+create index if not exists game_advancements_group_key_idx
+  on public.game_advancements(group_key);
+
+create index if not exists team_points_team_id_idx
+  on public.team_points(team_id);
+
+create index if not exists team_points_source_idx
+  on public.team_points(source_type, source_id);
+
+create or replace view public.team_scoreboard
+with (security_invoker = true)
+as
+with totals as (
+  select
+    t.id as team_id,
+    t.name as team_name,
+    t.display_order,
+    coalesce(sum(tp.points), 0)::integer as total_points
+  from public.teams t
+  left join public.team_points tp on tp.team_id = t.id
+  where t.is_active = true
+  group by t.id, t.name, t.display_order
+)
+select
+  team_id,
+  team_name,
+  display_order,
+  total_points,
+  dense_rank() over (
+    order by total_points desc
+  )::integer as rank_order
+from totals;
+
+create or replace function public.get_scoreboard()
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+begin
+  return jsonb_build_object(
+    'ok', true,
+    'generated_at', now(),
+    'rankings', coalesce(
+      (
+        select jsonb_agg(
+          jsonb_build_object(
+            'team_id', sb.team_id,
+            'team_name', sb.team_name,
+            'rank_order', sb.rank_order,
+            'total_points', sb.total_points,
+            'sources', coalesce(
+              (
+                select jsonb_agg(
+                  jsonb_build_object(
+                    'source_type', tp.source_type,
+                    'source_id', tp.source_id,
+                    'source_title', coalesce(g.title, b.name, tp.reason),
+                    'points', tp.points,
+                    'reason', tp.reason
+                  )
+                  order by tp.source_type, coalesce(g.scheduled_start_time, b.scheduled_start_time), tp.reason
+                )
+                from public.team_points tp
+                left join public.games g on tp.source_type = 'game' and g.id = tp.source_id
+                left join public.booths b on tp.source_type = 'booth' and b.id = tp.source_id
+                where tp.team_id = sb.team_id
+              ),
+              '[]'::jsonb
+            )
+          )
+          order by sb.rank_order, sb.total_points desc, sb.display_order
+        )
+        from public.team_scoreboard sb
+      ),
+      '[]'::jsonb
+    ),
+    'point_sources', coalesce(
+      (
+        select jsonb_agg(
+          jsonb_build_object(
+            'team_id', tp.team_id,
+            'team_name', t.name,
+            'source_type', tp.source_type,
+            'source_id', tp.source_id,
+            'source_title', coalesce(g.title, b.name, tp.reason),
+            'points', tp.points,
+            'reason', tp.reason
+          )
+          order by t.display_order, tp.source_type, coalesce(g.scheduled_start_time, b.scheduled_start_time), tp.reason
+        )
+        from public.team_points tp
+        join public.teams t on t.id = tp.team_id
+        left join public.games g on tp.source_type = 'game' and g.id = tp.source_id
+        left join public.booths b on tp.source_type = 'booth' and b.id = tp.source_id
+      ),
+      '[]'::jsonb
+    )
+  );
+end;
+$$;
+
 create or replace function public._set_game_result_slot(
   p_game_id uuid,
   p_slot text,
@@ -33,6 +159,223 @@ begin
         updated_at = now()
     where game_id = p_game_id;
   end if;
+end;
+$$;
+
+create or replace function public.invalidate_downstream_games(p_game_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_downstream_count integer := 0;
+  v_points_deleted integer := 0;
+  v_sets_deleted integer := 0;
+  v_rankings_deleted integer := 0;
+  v_results_reset integer := 0;
+  v_games_reset integer := 0;
+begin
+  create temporary table if not exists downstream_games (
+    game_id uuid primary key
+  ) on commit drop;
+
+  truncate table pg_temp.downstream_games;
+
+  insert into pg_temp.downstream_games (game_id)
+  with recursive downstream(game_id) as (
+    select ga.to_game_id
+    from public.game_advancements ga
+    where ga.from_game_id = p_game_id
+
+    union
+
+    select ga.to_game_id
+    from public.game_advancements ga
+    join downstream d on d.game_id = ga.from_game_id
+  )
+  select distinct game_id
+  from downstream
+  where game_id <> p_game_id
+  on conflict (game_id) do nothing;
+
+  select count(*)
+  into v_downstream_count
+  from pg_temp.downstream_games;
+
+  if v_downstream_count = 0 then
+    return jsonb_build_object(
+      'ok', true,
+      'invalidated', false,
+      'downstream_games', 0
+    );
+  end if;
+
+  insert into public.game_results (game_id)
+  select dg.game_id
+  from pg_temp.downstream_games dg
+  on conflict (game_id) do nothing;
+
+  delete from public.team_points tp
+  using pg_temp.downstream_games dg
+  where tp.source_type = 'game'
+    and tp.source_id = dg.game_id;
+
+  get diagnostics v_points_deleted = row_count;
+
+  delete from public.game_result_sets grs
+  using public.game_results gr, pg_temp.downstream_games dg
+  where grs.game_result_id = gr.id
+    and gr.game_id = dg.game_id;
+
+  get diagnostics v_sets_deleted = row_count;
+
+  delete from public.game_rankings grk
+  using pg_temp.downstream_games dg
+  where grk.game_id = dg.game_id;
+
+  get diagnostics v_rankings_deleted = row_count;
+
+  with advancement_slots as (
+    select
+      ga.to_game_id,
+      bool_or(ga.to_slot = 'left') as clear_left_slot,
+      bool_or(ga.to_slot = 'right') as clear_right_slot
+    from public.game_advancements ga
+    join pg_temp.downstream_games dg on dg.game_id = ga.to_game_id
+    group by ga.to_game_id
+  )
+  update public.game_results gr
+  set
+    left_team_id = case when coalesce(s.clear_left_slot, false) then null else gr.left_team_id end,
+    right_team_id = case when coalesce(s.clear_right_slot, false) then null else gr.right_team_id end,
+    left_score = null,
+    right_score = null,
+    winner_team_id = null,
+    tiebreak_type = 'none',
+    left_tiebreak_score = null,
+    right_tiebreak_score = null,
+    note = '상위 경기 수정으로 결과 초기화',
+    updated_by = public.current_admin_id(),
+    updated_at = now()
+  from pg_temp.downstream_games dg
+  left join advancement_slots s on s.to_game_id = dg.game_id
+  where gr.game_id = dg.game_id;
+
+  get diagnostics v_results_reset = row_count;
+
+  update public.games g
+  set
+    status = 'scheduled',
+    actual_end_time = null,
+    updated_by = public.current_admin_id(),
+    updated_at = now()
+  from pg_temp.downstream_games dg
+  where g.id = dg.game_id;
+
+  get diagnostics v_games_reset = row_count;
+
+  return jsonb_build_object(
+    'ok', true,
+    'invalidated', true,
+    'downstream_games', v_downstream_count,
+    'points_deleted', v_points_deleted,
+    'sets_deleted', v_sets_deleted,
+    'rankings_deleted', v_rankings_deleted,
+    'results_reset', v_results_reset,
+    'games_reset', v_games_reset
+  );
+end;
+$$;
+
+create or replace function public.get_admin_context()
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_admin public.admins%rowtype;
+begin
+  select
+    a.*
+  into v_admin
+  from public.admins a
+  where a.auth_user_id = auth.uid()
+    and a.is_active = true
+  limit 1;
+
+  if v_admin.id is null then
+    return jsonb_build_object(
+      'ok', false,
+      'reason', 'admin_not_found'
+    );
+  end if;
+
+  return jsonb_build_object(
+    'ok', true,
+    'admin', jsonb_build_object(
+      'id', v_admin.id,
+      'name', v_admin.name,
+      'email', v_admin.email,
+      'role', v_admin.role,
+      'auth_user_id', v_admin.auth_user_id,
+      'is_active', v_admin.is_active
+    ),
+    'assignments', coalesce(
+      (
+        select jsonb_agg(to_jsonb(aa) order by aa.id)
+        from public.admin_assignments aa
+        where aa.admin_id = v_admin.id
+          and aa.is_active = true
+      ),
+      '[]'::jsonb
+    ),
+    'games', coalesce(
+      (
+        select jsonb_agg(to_jsonb(g) order by g.scheduled_start_time, g.title)
+        from public.games g
+      ),
+      '[]'::jsonb
+    ),
+    'booths', coalesce(
+      (
+        select jsonb_agg(to_jsonb(b) order by b.scheduled_start_time, b.name)
+        from public.booths b
+      ),
+      '[]'::jsonb
+    ),
+    'teams', coalesce(
+      (
+        select jsonb_agg(to_jsonb(t) order by t.display_order, t.name)
+        from public.teams t
+        where t.is_active = true
+      ),
+      '[]'::jsonb
+    ),
+    'game_results', coalesce(
+      (
+        select jsonb_agg(to_jsonb(gr) order by gr.game_id, gr.id)
+        from public.game_results gr
+      ),
+      '[]'::jsonb
+    ),
+    'game_result_sets', coalesce(
+      (
+        select jsonb_agg(to_jsonb(grs) order by grs.game_result_id, grs.set_number, grs.id)
+        from public.game_result_sets grs
+      ),
+      '[]'::jsonb
+    ),
+    'game_rankings', coalesce(
+      (
+        select jsonb_agg(to_jsonb(grk) order by grk.game_id, grk.rank_order, grk.id)
+        from public.game_rankings grk
+      ),
+      '[]'::jsonb
+    ),
+    'scoreboard', public.get_scoreboard()
+  );
 end;
 $$;
 
@@ -722,6 +1065,8 @@ begin
     end if;
   end if;
 
+  perform public.invalidate_downstream_games(v_game_id);
+
   update public.game_results
   set left_score = v_left_score,
       right_score = v_right_score,
@@ -880,6 +1225,8 @@ begin
     raise exception 'rope result must have exactly one team with 2 set wins';
   end if;
 
+  perform public.invalidate_downstream_games(v_game_id);
+
   update public.game_results
   set left_score = v_left_wins,
       right_score = v_right_wins,
@@ -1037,6 +1384,8 @@ begin
     raise exception 'dodgeball result must have exactly one team with 2 set wins';
   end if;
 
+  perform public.invalidate_downstream_games(v_game_id);
+
   update public.game_results
   set left_score = v_left_wins,
       right_score = v_right_wins,
@@ -1144,6 +1493,8 @@ begin
     raise exception 'relay rankings contain duplicate ranks';
   end if;
 
+  perform public.invalidate_downstream_games(v_game_id);
+
   delete from public.game_rankings
   where game_id = v_game_id;
 
@@ -1217,6 +1568,9 @@ end;
 $$;
 
 revoke execute on function public._set_game_result_slot(uuid, text, uuid) from public, anon, authenticated;
+revoke execute on function public.invalidate_downstream_games(uuid) from public, anon, authenticated;
+revoke execute on function public.get_scoreboard() from public;
+revoke execute on function public.get_admin_context() from public, anon;
 revoke execute on function public.apply_advancements_for_game(uuid) from public, anon, authenticated;
 revoke execute on function public.apply_group_advancement(text) from public, anon, authenticated;
 revoke execute on function public.rebuild_bracket_points_for_sport(text) from public, anon, authenticated;
@@ -1227,9 +1581,16 @@ revoke execute on function public.submit_rope_game_result(jsonb) from public, an
 revoke execute on function public.submit_dodgeball_game_result(jsonb) from public, anon;
 revoke execute on function public.submit_relay_result(jsonb) from public, anon;
 
+grant execute on function public.get_scoreboard() to anon, authenticated;
+grant execute on function public.get_admin_context() to authenticated;
 grant execute on function public.submit_score_game_result(jsonb) to authenticated;
 grant execute on function public.submit_rope_game_result(jsonb) to authenticated;
 grant execute on function public.submit_dodgeball_game_result(jsonb) to authenticated;
 grant execute on function public.submit_relay_result(jsonb) to authenticated;
+
+revoke all on table public.team_scoreboard from public;
+revoke all on table public.team_scoreboard from anon, authenticated;
+
+notify pgrst, 'reload schema';
 
 commit;
