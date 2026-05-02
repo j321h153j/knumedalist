@@ -17,6 +17,11 @@ const state = {
   expandedScoreboardTeams: new Set(),
   editingBoothScoreId: null,
   initialTabApplied: false,
+  navigation: {
+    initialized: false,
+    restoring: false,
+    lastKey: "",
+  },
   loading: true,
   auth: {
     client: null,
@@ -130,6 +135,8 @@ function clearAdminState() {
   state.scoreboard = null;
   state.formFeedback = { kind: "", text: "" };
   state.initialTabApplied = false;
+  state.navigation.initialized = false;
+  state.navigation.lastKey = "";
 }
 
 function currentGames() {
@@ -138,7 +145,7 @@ function currentGames() {
   );
 }
 
-function upcomingGames(limit = 3) {
+function upcomingGames(limit = 1) {
   return state.games
     .filter((game) => game.status !== "completed" && game.status !== "in_progress" && toMinutes(game.start) > demoMinutes)
     .sort((left, right) => toMinutes(left.start) - toMinutes(right.start))
@@ -1243,6 +1250,61 @@ function renderMenuTabs() {
     .join("");
 }
 
+function getNavigationRoute() {
+  return {
+    adminRoute: true,
+    tab: state.tab,
+    adminFormId: state.adminFormId,
+    editingBoothScoreId: state.editingBoothScoreId,
+  };
+}
+
+function getNavigationKey(route = getNavigationRoute()) {
+  return [
+    route.tab || "",
+    route.adminFormId || "",
+    route.editingBoothScoreId || "",
+  ].join("|");
+}
+
+function applyNavigationRoute(route) {
+  if (!route?.adminRoute) return false;
+
+  const allowedTabs = new Set(["dashboard", "assignments", "forms", "scoreboard"]);
+  let nextTab = allowedTabs.has(route.tab) ? route.tab : isSuperAdmin() ? "forms" : "assignments";
+  const nextFormId = route.adminFormId || null;
+
+  if (isSuperAdmin() && nextTab === "assignments") nextTab = "forms";
+  if (!isSuperAdmin() && nextTab === "forms" && !nextFormId) nextTab = "assignments";
+
+  state.tab = nextTab;
+  state.adminFormId = nextFormId;
+  state.editingBoothScoreId = route.editingBoothScoreId || null;
+  state.formFeedback = { kind: "", text: "" };
+  return true;
+}
+
+function syncNavigationState() {
+  if (!isLoggedIn() || state.navigation.restoring) return;
+
+  const route = getNavigationRoute();
+  const key = getNavigationKey(route);
+
+  if (!state.navigation.initialized) {
+    const historyState = { ...route, key };
+    window.history.replaceState(historyState, "", window.location.href);
+    window.history.pushState(historyState, "", window.location.href);
+    state.navigation.initialized = true;
+    state.navigation.lastKey = key;
+    return;
+  }
+
+  if (key === state.navigation.lastKey) return;
+
+  window.history.pushState({ ...route, key }, "", window.location.href);
+  state.navigation.lastKey = key;
+}
+
 function updateChrome() {
   tabs.classList.toggle("hidden", !isLoggedIn());
   app.classList.toggle("no-tabs", !isLoggedIn());
@@ -1292,6 +1354,8 @@ function render() {
   tabButtons().forEach((button) => {
     button.classList.toggle("active", button.dataset.tab === state.tab);
   });
+
+  syncNavigationState();
 
   if (state.tab === "dashboard") renderDashboard();
   if (state.tab === "assignments") renderAssignments();
@@ -2314,6 +2378,19 @@ function returnToFormList() {
   state.formFeedback = { kind: "", text: "" };
   if (!isSuperAdmin()) state.tab = "assignments";
 }
+
+window.addEventListener("popstate", (event) => {
+  if (!isLoggedIn()) return;
+
+  const route = event.state;
+  if (!route?.adminRoute) return;
+
+  state.navigation.restoring = true;
+  applyNavigationRoute(route);
+  render();
+  state.navigation.restoring = false;
+  state.navigation.lastKey = getNavigationKey();
+});
 
 document.addEventListener("click", async (event) => {
   const tabButton = event.target.closest("[data-tab]");

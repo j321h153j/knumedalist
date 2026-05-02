@@ -72,6 +72,12 @@ img {
   backdrop-filter: blur(12px);
 }
 
+.topbar > div:first-child,
+.topbar-actions,
+.topbar-user {
+  min-width: 0;
+}
+
 .eyebrow {
   margin: 0 0 4px;
   color: var(--teal);
@@ -133,6 +139,11 @@ img {
 }
 
 .topbar-user span {
+  display: block;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--muted);
   font-size: 11px;
   font-weight: 700;
@@ -293,6 +304,9 @@ h4 {
   border: 1px solid var(--line);
   background: var(--surface);
   color: var(--muted);
+  width: max-content;
+  max-width: 100%;
+  white-space: nowrap;
 }
 
 .pill.live {
@@ -1107,10 +1121,52 @@ h4 {
 @media (max-width: 420px) {
   .screen {
     padding-inline: 10px;
+    padding-bottom: 132px;
   }
 
   .topbar {
-    padding-inline: 14px;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+  }
+
+  .topbar h1 {
+    font-size: 20px;
+  }
+
+  .topbar-note {
+    margin-top: 3px;
+  }
+
+  .topbar-actions.compact {
+    flex: 1;
+    justify-content: flex-end;
+    gap: 6px;
+  }
+
+  .topbar-user strong {
+    display: none;
+  }
+
+  .topbar-user span {
+    max-width: 118px;
+    font-size: 10px;
+  }
+
+  .topbar-actions .ghost-button {
+    flex: 0 0 auto;
+    min-height: 32px;
+    padding: 6px 9px;
+    font-size: 12px;
+  }
+
+  .section-title {
+    margin-top: 14px;
+  }
+
+  .event-row,
+  .assignment-card {
+    padding: 12px;
   }
 
   .two-column,
@@ -1130,6 +1186,25 @@ h4 {
   .row-split,
   .booth-score-history-row {
     display: grid;
+  }
+
+  .row-head .pill,
+  .row-split .pill {
+    justify-self: start;
+  }
+
+  .event-row {
+    gap: 10px;
+  }
+
+  .event-row .action-row {
+    margin-top: 2px;
+  }
+
+  .event-row .text-button:not(.primary-submit-button) {
+    min-height: 44px;
+    padding: 10px 15px;
+    font-size: 14px;
   }
 
   .ranking-row {
