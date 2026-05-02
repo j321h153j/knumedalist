@@ -435,12 +435,22 @@ function canShowManualAdvancement(game) {
 
 async function boot() {
   try {
-    initSupabaseClient();
+    const client = initSupabaseClient();
+    state.loading = true;
+    render();
+
+    const { data, error } = await client.auth.getSession();
+    if (error) throw error;
+    await syncSession(data.session ?? null);
   } catch (error) {
     state.auth.error = error.message;
-  } finally {
     state.loading = false;
     render();
+  } finally {
+    if (state.loading) {
+      state.loading = false;
+      render();
+    }
   }
 }
 
@@ -449,8 +459,8 @@ function initSupabaseClient() {
 
   state.auth.client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     auth: {
-      persistSession: false,
-      autoRefreshToken: false,
+      persistSession: true,
+      autoRefreshToken: true,
       detectSessionInUrl: false,
     },
   });
