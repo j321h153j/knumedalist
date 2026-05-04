@@ -1,9 +1,10 @@
 import React from 'react';
 
-export default function EventCard({ icon, sportType, time, title, matchup, location, scoreLeft, scoreRight, status, onClick }) {
+export default function EventCard({ icon, sportType, time, title, matchup, location, scoreLeft, scoreRight, status, relayRankings, getTeamName, onClick }) {
   // 진행 완료(completed)일 때만 점수 표시
   const showScore = status === 'completed';
   const isInProgress = status === 'in_progress';
+  const hasRelayResults = relayRankings && relayRankings.length > 0;
 
   return (
     <article 
@@ -42,7 +43,28 @@ export default function EventCard({ icon, sportType, time, title, matchup, locat
         {location && <p className="text-[14px] text-gray-400 mt-1 font-lexend">{location}</p>}
       </div>
       
-      {showScore && (
+      {/* 계주 순위 미니 프리뷰 */}
+      {hasRelayResults && (
+        <div className="bg-gradient-to-r from-pink-50 to-orange-50 rounded-xl py-3 px-4 mt-4 relative z-10">
+          <div className="flex flex-col gap-1.5">
+            {relayRankings.slice(0, 3).map((rank) => {
+              const medals = ['🥇', '🥈', '🥉'];
+              return (
+                <div key={rank.id || rank.team_id} className="flex items-center gap-2">
+                  <span className="text-base w-6 text-center">{medals[rank.rank_order - 1]}</span>
+                  <span className="font-cafe24 text-sm font-bold text-gray-800 flex-1">{getTeamName?.(rank.team_id) || '팀 미정'}</span>
+                  {rank.record_value && (
+                    <span className="font-lexend text-[11px] text-gray-400">{rank.record_value}</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 1:1 경기 점수 (계주가 아닌 경우에만) */}
+      {showScore && !hasRelayResults && (
         <div className="bg-[#FDF3F5] rounded-xl py-4 px-6 flex items-center justify-center mt-4 relative z-10">
           <p className="flex items-center gap-4 text-[18px] font-bold text-[#5B002D] font-cafe24">
             <span className="text-[24px] font-bold">{scoreLeft} : {scoreRight}</span>

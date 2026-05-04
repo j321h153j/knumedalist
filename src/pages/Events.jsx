@@ -31,8 +31,20 @@ export default function Events({ data }) {
 
   const getTeamName = (id) => teams.find(t => t.id === id)?.name || '팀 미정';
   
+  const isRelay = (sport) => (sport || '').includes('계주');
+
   const getMatchup = (game) => {
     if (isNonMatchEvent(game.title, game.sport)) return null;
+    // 계주는 대진이 아닌 순위 기반이므로, 결과가 있으면 1등 팀을 보여줌
+    if (isRelay(game.sport)) {
+      const relayRankings = gameRankings
+        .filter(r => r.game_id === game.id)
+        .sort((a, b) => a.rank_order - b.rank_order);
+      if (relayRankings.length > 0) {
+        return `🥇 ${getTeamName(relayRankings[0].team_id)}`;
+      }
+      return null;
+    }
     const res = results.find(r => r.game_id === game.id);
     if (!res) return '대진표 미정';
     return `${getTeamName(res.left_team_id)} vs ${getTeamName(res.right_team_id)}`;
@@ -168,6 +180,12 @@ export default function Events({ data }) {
                   status={game.status}
                   scoreLeft={scores.left}
                   scoreRight={scores.right}
+                  relayRankings={
+                    isRelay(game.sport) && game.status === 'completed'
+                      ? gameRankings.filter(r => r.game_id === game.id).sort((a, b) => a.rank_order - b.rank_order)
+                      : null
+                  }
+                  getTeamName={getTeamName}
                   onClick={() => setSelectedGame(game)}
                 />
               </motion.div>

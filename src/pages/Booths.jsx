@@ -45,7 +45,7 @@ function applyGuideOverride(booth) {
   return override ? { ...booth, summary: override.summary, guide: override.guide } : booth;
 }
 
-export default function Booths({ data }) {
+export default function Booths({ data, boothRankings }) {
   const booths = (data?.booths || []).map(applyGuideOverride);
   const boothSessions = data?.booth_sessions || [];
   const [selectedBooth, setSelectedBooth] = useState(null);

@@ -73,6 +73,7 @@ export default function App() {
   const [eventData, setEventData] = useState(null)
   const [scoreboardData, setScoreboardData] = useState(null)
   const [cardNewsData, setCardNewsData] = useState([])
+  const [boothRankingsData, setBoothRankingsData] = useState([])
   const [loading, setLoading] = useState(true)
   const [tabKey, setTabKey] = useState(0)
 
@@ -202,7 +203,7 @@ export default function App() {
     switch(currentTab) {
       case 'home': return <Home data={eventData} />
       case 'events': return <Events data={eventData} />
-      case 'booths': return <Booths data={eventData} />
+      case 'booths': return <Booths data={eventData} boothRankings={boothRankingsData} />
       case 'rankings': return <Rankings data={eventData} scoreboard={scoreboardData} />
       case 'info': return <Info cardNews={cardNewsData} />
       default: return <Home data={eventData} />

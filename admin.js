@@ -16,6 +16,7 @@ const state = {
   adminFormId: null,
   expandedGroups: loadExpandedGroups(),
   expandedScoreboardTeams: new Set(),
+  editingGameId: null,
   editingBoothScoreId: null,
   initialTabApplied: false,
   navigation: {
@@ -496,6 +497,61 @@ function getQualifierWinnerOptions(game) {
     .filter((option) => option.teamId);
 }
 
+function getScoreAdvancementMetric(option) {
+  const result = option?.result;
+  if (!result?.winnerTeamId) return null;
+
+  const winnerIsLeft = result.winnerTeamId === result.leftTeamId;
+  const pointsFor = Number(winnerIsLeft ? result.leftScore : result.rightScore);
+  const pointsAgainst = Number(winnerIsLeft ? result.rightScore : result.leftScore);
+  const tiebreakFor = Number(winnerIsLeft ? result.leftTiebreakScore : result.rightTiebreakScore) || 0;
+  const tiebreakAgainst = Number(winnerIsLeft ? result.rightTiebreakScore : result.leftTiebreakScore) || 0;
+
+  if (!Number.isFinite(pointsFor) || !Number.isFinite(pointsAgainst)) return null;
+
+  return {
+    scoreDiff: pointsFor - pointsAgainst,
+    pointsFor,
+    tiebreakDiff: tiebreakFor - tiebreakAgainst,
+    tiebreakFor,
+  };
+}
+
+function compareScoreAdvancementOptions(left, right) {
+  const leftMetric = getScoreAdvancementMetric(left);
+  const rightMetric = getScoreAdvancementMetric(right);
+  if (!leftMetric || !rightMetric) return null;
+
+  const keys = ["scoreDiff", "pointsFor", "tiebreakDiff", "tiebreakFor"];
+  for (const key of keys) {
+    if (leftMetric[key] > rightMetric[key]) return -1;
+    if (leftMetric[key] < rightMetric[key]) return 1;
+  }
+  return 0;
+}
+
+function getManualAdvancementNeed(game) {
+  const prefix = getBracketPrefix(game);
+  const options = getQualifierWinnerOptions(game);
+  if (options.length !== 2 || options[0].teamId === options[1].teamId) {
+    return { ready: false, manualRequired: false };
+  }
+
+  if (prefix === "\uB18D\uAD6C" || prefix === "\uD48B\uC0B4") {
+    const comparison = compareScoreAdvancementOptions(options[0], options[1]);
+    if (comparison === null) return { ready: false, manualRequired: false };
+    return {
+      ready: true,
+      manualRequired: comparison === 0,
+    };
+  }
+
+  return {
+    ready: true,
+    manualRequired: true,
+  };
+}
+
 function canShowManualAdvancement(game) {
   if (!isSuperAdmin() || !game || !isGameItem(game)) return false;
   if (!(game.title.includes("\uBD80\uACB0\uC2B9") || game.title.includes("\uACB0\uC2B9"))) return false;
@@ -504,8 +560,8 @@ function canShowManualAdvancement(game) {
   const result = getGameResult(game.id);
   if (result?.leftTeamId && result?.rightTeamId) return false;
 
-  const options = getQualifierWinnerOptions(game);
-  return options.length === 2 && options[0].teamId !== options[1].teamId;
+  const manualNeed = getManualAdvancementNeed(game);
+  return manualNeed.ready && manualNeed.manualRequired;
 }
 
 function renderReadinessPanel(game, readiness) {
@@ -993,15 +1049,21 @@ function buildDodgeballPayload(form, game) {
 }
 
 function buildRelayPayload(form, game) {
-  const rankings = state.teams.map((team) => ({
-    team_id: team.id,
-    rank_order: readIntegerField(form, `rank_${team.id}`, `${team.name} \uB4F1\uC218`, { min: 1 }),
-    record_value: readTextField(form, `record_${team.id}`),
-    note: "",
-  }));
+  const rankings = state.teams.map((_, index) => {
+    const rankOrder = index + 1;
+    const teamId = readTextField(form, `rank_team_${rankOrder}`);
+    if (!teamId) throw new Error(`${rankOrder}\uB4F1 \uD559\uBC88\uC744 \uC120\uD0DD\uD574 \uC8FC\uC138\uC694.`);
 
-  const rankValues = rankings.map((ranking) => ranking.rank_order);
-  if (new Set(rankValues).size !== rankValues.length) throw new Error("\uACC4\uC8FC \uB4F1\uC218\uB294 \uC911\uBCF5\uB420 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.");
+    return {
+      team_id: teamId,
+      rank_order: rankOrder,
+      record_value: "",
+      note: "",
+    };
+  });
+
+  const teamIds = rankings.map((ranking) => ranking.team_id);
+  if (new Set(teamIds).size !== teamIds.length) throw new Error("\uACC4\uC8FC \uD559\uBC88\uC740 \uC911\uBCF5\uD574\uC11C \uC120\uD0DD\uD560 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.");
 
   return {
     rpcName: "submit_relay_result",
@@ -1147,6 +1209,36 @@ function setSubmitBusy(form, busy, busyText) {
   submitButton.textContent = busy ? busyText : submitButton.dataset.idleText;
 }
 
+function requestConfirmation({ title, message, confirmLabel = "\uD655\uC778", cancelLabel = "\uCDE8\uC18C" }) {
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.className = "confirm-overlay";
+    overlay.innerHTML = `
+      <section class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+        <h2 id="confirm-title">${escapeHtml(title)}</h2>
+        <p>${escapeHtml(message)}</p>
+        <div class="confirm-actions">
+          <button class="ghost-button" data-confirm-cancel type="button">${escapeHtml(cancelLabel)}</button>
+          <button class="text-button" data-confirm-ok type="button">${escapeHtml(confirmLabel)}</button>
+        </div>
+      </section>
+    `;
+
+    const finish = (confirmed) => {
+      overlay.remove();
+      resolve(confirmed);
+    };
+
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay || event.target.closest("[data-confirm-cancel]")) finish(false);
+      if (event.target.closest("[data-confirm-ok]")) finish(true);
+    });
+
+    document.body.append(overlay);
+    overlay.querySelector("[data-confirm-ok]")?.focus();
+  });
+}
+
 async function handleResultSubmit(form) {
   if (!state.auth.client) return;
   if (state.auth.pending === "save") return;
@@ -1158,6 +1250,14 @@ async function handleResultSubmit(form) {
     setInlineFormFeedback(form, "error", error.message);
     return;
   }
+
+  const game = getGame(form.dataset.gameId);
+  const confirmed = await requestConfirmation({
+    title: "\uACB0\uACFC\uB97C \uC800\uC7A5\uD560\uAE4C\uC694?",
+    message: `${game?.title ?? "\uC774 \uACBD\uAE30"} \uACB0\uACFC\uB97C \uC800\uC7A5\uD569\uB2C8\uB2E4. \uC800\uC7A5 \uD6C4 \uB2E4\uC74C \uB300\uC9C4\uACFC \uC810\uC218\uD45C\uAC00 \uAC31\uC2E0\uB420 \uC218 \uC788\uC2B5\uB2C8\uB2E4.`,
+    confirmLabel: "\uC800\uC7A5",
+  });
+  if (!confirmed) return;
 
   state.auth.pending = "save";
   let shouldRender = false;
@@ -1176,6 +1276,7 @@ async function handleResultSubmit(form) {
       ? " \uC544\uC9C1 \uB2E4\uC74C \uB300\uC9C4\uC740 \uB2E4\uB978 \uACBD\uAE30 \uACB0\uACFC\uB97C \uAE30\uB2E4\uB9AC\uB294 \uC0C1\uD0DC\uC785\uB2C8\uB2E4."
       : "";
     state.formFeedback = { kind: "success", text: `\uC800\uC7A5 \uC644\uB8CC.${waiting}` };
+    state.editingGameId = null;
     await withTimeout(
       refreshAdminContext(),
       10000,
@@ -1240,6 +1341,16 @@ async function handleBoothSubmit(form) {
 async function handleStartItem(targetId, targetType) {
   if (!state.auth.client) return;
   if (state.auth.pending === "start") return;
+
+  if (targetType === "game") {
+    const game = getGame(targetId);
+    const confirmed = await requestConfirmation({
+      title: "\uACBD\uAE30\uB97C \uC2DC\uC791\uD560\uAE4C\uC694?",
+      message: `${game?.title ?? "\uC774 \uACBD\uAE30"}\uC744(\uB97C) \uC2DC\uC791 \uC0C1\uD0DC\uB85C \uBC14\uAFC9\uB2C8\uB2E4. \uD559\uC0DD \uD654\uBA74\uC5D0\uB3C4 \uC9C4\uD589 \uC911\uC73C\uB85C \uBCF4\uC77C \uC218 \uC788\uC2B5\uB2C8\uB2E4.`,
+      confirmLabel: "\uC2DC\uC791",
+    });
+    if (!confirmed) return;
+  }
 
   state.auth.pending = "start";
   state.formFeedback = { kind: "info", text: "\uC2DC\uC791 \uC0C1\uD0DC\uB97C \uC800\uC7A5\uD558\uB294 \uC911\uC785\uB2C8\uB2E4." };
@@ -1370,6 +1481,7 @@ function getNavigationRoute() {
     adminRoute: true,
     tab: state.tab,
     adminFormId: state.adminFormId,
+    editingGameId: state.editingGameId,
     editingBoothScoreId: state.editingBoothScoreId,
   };
 }
@@ -1378,6 +1490,7 @@ function getNavigationKey(route = getNavigationRoute()) {
   return [
     route.tab || "",
     route.adminFormId || "",
+    route.editingGameId || "",
     route.editingBoothScoreId || "",
   ].join("|");
 }
@@ -1394,6 +1507,7 @@ function applyNavigationRoute(route) {
 
   state.tab = nextTab;
   state.adminFormId = nextFormId;
+  state.editingGameId = route.editingGameId || null;
   state.editingBoothScoreId = route.editingBoothScoreId || null;
   state.formFeedback = { kind: "", text: "" };
   return true;
@@ -1928,6 +2042,48 @@ function renderBoothWaitingPanel(booth) {
   `;
 }
 
+function renderRelayReadonlySummary(game) {
+  const rankings = getGameRankings(game.id).sort((left, right) => left.rankOrder - right.rankOrder);
+  if (!rankings.length) return `<div class="todo-alert">\uACC4\uC8FC \uC21C\uC704\uAC00 \uC544\uC9C1 \uC800\uC7A5\uB418\uC9C0 \uC54A\uC558\uC2B5\uB2C8\uB2E4.</div>`;
+
+  return `
+    <div class="readonly-ranking-list">
+      ${rankings
+        .map(
+          (ranking) => `
+            <div class="readonly-ranking-row">
+              <span>${escapeHtml(`${ranking.rankOrder}\uC704`)}</span>
+              <strong>${escapeHtml(getTeamName(ranking.teamId))}</strong>
+              ${ranking.recordValue ? `<small>${escapeHtml(ranking.recordValue)}</small>` : ""}
+            </div>
+          `,
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+function renderGameReviewPanel(game) {
+  const result = getGameResult(game.id);
+  const summary = game.sport === "\uACC4\uC8FC" ? renderRelayReadonlySummary(game) : renderMatchSummary(result);
+
+  return `
+    <section class="form-card">
+      <div class="row-head">
+        <div>
+          <h2>${escapeHtml(game.title)}</h2>
+          <p class="time">${escapeHtml(formatRange(game.start, game.end))} · ${escapeHtml(game.location)}</p>
+        </div>
+        <span class="pill live">\uC785\uB825 \uC644\uB8CC</span>
+      </div>
+      ${summary}
+      <div class="action-row">
+        <button class="text-button" data-edit-game-result="${escapeHtml(game.id)}" type="button">\uC218\uC815</button>
+      </div>
+    </section>
+  `;
+}
+
 function renderManualAdvancementPanel(game) {
   const options = getQualifierWinnerOptions(game);
   const groupKey = getQualifierGroupKey(game);
@@ -1995,6 +2151,10 @@ function renderChallengeDetail(targetId) {
 
   if (game && !isItemStarted(item) && !isItemCompleted(item)) {
     return renderStartPanel(item, type);
+  }
+
+  if (game && isItemCompleted(item) && state.editingGameId !== game.id) {
+    return renderGameReviewPanel(game);
   }
 
   return game ? renderGameForm(game) : renderBoothForm(booth);
@@ -2256,19 +2416,27 @@ function renderDodgeballGameForm(game, result, readiness) {
 function renderRelayGameForm(game, readiness) {
   const saveBusy = state.auth.pending === "save";
   const rankingMap = new Map(getGameRankings(game.id).map((ranking) => [ranking.teamId, ranking]));
-  const rows = state.teams
-    .map((team) => {
-      const ranking = rankingMap.get(team.id);
+  const rankRows = state.teams
+    .map((_, index) => {
+      const rankOrder = index + 1;
+      const selectedRanking = [...rankingMap.values()].find((ranking) => ranking.rankOrder === rankOrder);
       return `
         <div class="relay-input-row">
-          <div class="result-team-label">${escapeHtml(team.name)}</div>
+          <div class="result-team-label">${escapeHtml(`${rankOrder}\uB4F1`)}</div>
           <div class="field">
-            <label>\uB4F1\uC218</label>
-            <input name="rank_${escapeHtml(team.id)}" type="number" min="1" max="${state.teams.length}" inputmode="numeric" value="${escapeHtml(inputValue(ranking?.rankOrder))}" required />
-          </div>
-          <div class="field">
-            <label>\uAE30\uB85D</label>
-            <input name="record_${escapeHtml(team.id)}" type="text" value="${escapeHtml(ranking?.recordValue ?? "")}" placeholder="\uC608: 1:23.45" />
+            <label>${escapeHtml(`${rankOrder}\uB4F1 \uD559\uBC88`)}</label>
+            <select name="rank_team_${rankOrder}" required>
+              <option value="">\uD559\uBC88 \uC120\uD0DD</option>
+              ${state.teams
+                .map(
+                  (team) => `
+                    <option value="${escapeHtml(team.id)}" ${team.id === selectedRanking?.teamId ? "selected" : ""}>
+                      ${escapeHtml(team.name)}
+                    </option>
+                  `,
+                )
+                .join("")}
+            </select>
           </div>
         </div>
       `;
@@ -2285,7 +2453,9 @@ function renderRelayGameForm(game, readiness) {
         <span class="pill live">\uC785\uB825 \uAC00\uB2A5</span>
       </div>
       ${renderFormFeedback()}
-      ${rows}
+      <div class="relay-rank-form">
+        ${rankRows}
+      </div>
       <div class="action-row">
         <button class="text-button primary-submit-button" type="submit" ${readiness.ready && !saveBusy ? "" : "disabled"}>
           ${saveBusy ? "\uC800\uC7A5 \uC911" : "\uACB0\uACFC \uC800\uC7A5"}
@@ -2560,6 +2730,7 @@ function tabButtons() {
 
 function returnToFormList() {
   state.adminFormId = null;
+  state.editingGameId = null;
   state.editingBoothScoreId = null;
   state.formFeedback = { kind: "", text: "" };
   if (!isSuperAdmin()) state.tab = "assignments";
@@ -2584,6 +2755,7 @@ document.addEventListener("click", async (event) => {
     state.tab = tabButton.dataset.tab;
     if (state.tab !== "forms") {
       state.adminFormId = null;
+      state.editingGameId = null;
       state.editingBoothScoreId = null;
     }
     render();
@@ -2615,10 +2787,27 @@ document.addEventListener("click", async (event) => {
     return;
   }
 
+  const editGameButton = event.target.closest("[data-edit-game-result]");
+  if (editGameButton && isLoggedIn()) {
+    const game = getGame(editGameButton.dataset.editGameResult);
+    const confirmed = await requestConfirmation({
+      title: "\uC218\uC815\uD558\uC2DC\uACA0\uC2B5\uB2C8\uAE4C?",
+      message: `${game?.title ?? "\uC774 \uACBD\uAE30"} \uACB0\uACFC \uC785\uB825 \uD3FC\uC744 \uC5FD\uB2C8\uB2E4. \uC800\uC7A5\uD558\uBA74 \uB2E4\uC74C \uB300\uC9C4\uACFC \uC810\uC218\uD45C\uAC00 \uB2E4\uC2DC \uACC4\uC0B0\uB420 \uC218 \uC788\uC2B5\uB2C8\uB2E4.`,
+      confirmLabel: "\uC218\uC815",
+    });
+    if (!confirmed) return;
+
+    state.editingGameId = editGameButton.dataset.editGameResult;
+    state.formFeedback = { kind: "", text: "" };
+    render();
+    return;
+  }
+
   const editBoothScoreButton = event.target.closest("[data-edit-booth-score]");
   if (editBoothScoreButton && isLoggedIn()) {
     state.tab = "forms";
     state.adminFormId = editBoothScoreButton.dataset.openForm;
+    state.editingGameId = null;
     state.editingBoothScoreId = editBoothScoreButton.dataset.editBoothScore;
     state.formFeedback = { kind: "", text: "" };
     render();
@@ -2636,6 +2825,7 @@ document.addEventListener("click", async (event) => {
   if (openFormButton && isLoggedIn()) {
     state.tab = "forms";
     state.adminFormId = openFormButton.dataset.openForm;
+    state.editingGameId = null;
     state.editingBoothScoreId = null;
     state.formFeedback = { kind: "", text: "" };
     render();

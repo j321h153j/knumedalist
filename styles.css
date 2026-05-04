@@ -598,6 +598,47 @@ h4 {
   margin-bottom: 7px;
 }
 
+.readonly-ranking-list {
+  display: grid;
+  gap: 8px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.readonly-ranking-row {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-soft);
+}
+
+.readonly-ranking-row span {
+  display: grid;
+  place-items: center;
+  min-height: 30px;
+  border-radius: 999px;
+  background: #111;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.readonly-ranking-row strong {
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.readonly-ranking-row small {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
 .manual-panel {
   display: grid;
   gap: 12px;
@@ -1136,6 +1177,19 @@ h4 {
   grid-template-columns: minmax(62px, 0.8fr) 70px minmax(96px, 1.2fr);
 }
 
+.relay-rank-form {
+  display: grid;
+  gap: 10px;
+}
+
+.relay-rank-form .relay-input-row {
+  grid-template-columns: 64px minmax(0, 1fr);
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-soft);
+}
+
 .booth-score-row {
   grid-template-columns: 1fr;
   padding: 10px;
@@ -1245,6 +1299,50 @@ h4 {
 
 .bottom-tabs.admin {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(17, 17, 17, 0.42);
+}
+
+.confirm-dialog {
+  display: grid;
+  gap: 12px;
+  width: min(380px, 100%);
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 24px 60px rgba(17, 17, 17, 0.24);
+}
+
+.confirm-dialog h2 {
+  font-size: 22px;
+}
+
+.confirm-dialog p {
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 750;
+  line-height: 1.5;
+}
+
+.confirm-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.confirm-actions .ghost-button,
+.confirm-actions .text-button {
+  width: 100%;
 }
 
 .tab-button {
@@ -1445,6 +1543,7 @@ h4 {
   .booth-score-row,
   .row-head,
   .row-split,
+  .readonly-ranking-row,
   .match-teams,
   .booth-score-history-row {
     grid-template-columns: 1fr;
@@ -1452,6 +1551,7 @@ h4 {
 
   .row-head,
   .row-split,
+  .readonly-ranking-row,
   .booth-score-history-row {
     display: grid;
   }

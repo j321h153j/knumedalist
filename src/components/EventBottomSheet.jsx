@@ -269,32 +269,46 @@ export default function EventBottomSheet({ game, result, allGames, allResults, a
           )}
 
 
-
-
-
           {/* 계주 순위 */}
           {isRelay && rankings.length > 0 && (
-            <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden mb-4">
-              <div className="px-4 py-3 bg-gray-50 border-b border-gray-100">
-                <h3 className="font-cafe24 text-sm font-bold text-gray-700">순위</h3>
-              </div>
-              <div className="divide-y divide-gray-100">
-                {rankings.map(rank => {
-                  const medals = ['🥇', '🥈', '🥉'];
-                  return (
-                    <div key={rank.team_id} className="flex items-center justify-between px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        <span className="font-lexend font-bold text-lg w-8 text-center">
-                          {medals[rank.rank_order - 1] || rank.rank_order}
-                        </span>
-                        <span className="font-cafe24 text-base text-gray-900">{getTeamName(rank.team_id)}</span>
+            <div className="bg-gradient-to-br from-pink-50 to-orange-50 rounded-2xl overflow-hidden mb-4">
+              <div className="px-5 py-4">
+                <h3 className="font-cafe24 text-base font-bold text-gray-800 flex items-center gap-2 mb-4">
+                  <span className="material-symbols-outlined text-pink-500 text-[20px]" style={{fontVariationSettings: "'FILL' 1"}}>emoji_events</span>
+                  계주 최종 순위
+                </h3>
+                <div className="flex flex-col gap-2">
+                  {rankings.map((rank) => {
+                    const medals = ['🥇', '🥈', '🥉'];
+                    const medalEmoji = medals[rank.rank_order - 1] || `${rank.rank_order}위`;
+                    const bgColors = [
+                      'bg-gradient-to-r from-amber-50 to-yellow-50 border-amber-200 shadow-[0px_2px_8px_rgba(245,158,11,0.15)]',
+                      'bg-gradient-to-r from-gray-50 to-slate-50 border-gray-200',
+                      'bg-gradient-to-r from-orange-50 to-amber-50 border-orange-200'
+                    ];
+                    const bgColor = bgColors[rank.rank_order - 1] || 'bg-white border-gray-200';
+                    const isFirst = rank.rank_order === 1;
+
+                    return (
+                      <div 
+                        key={rank.id || rank.team_id}
+                        className={`flex items-center gap-4 px-5 ${isFirst ? 'py-5' : 'py-3.5'} rounded-2xl border ${bgColor} transition-all`}
+                      >
+                        <span className={`${isFirst ? 'text-3xl' : 'text-2xl'} w-8 text-center`}>{medalEmoji}</span>
+                        <div className="flex-1">
+                          <p className={`font-cafe24 ${isFirst ? 'text-lg' : 'text-base'} font-bold text-gray-900`}>
+                            {getTeamName(rank.team_id)}
+                          </p>
+                        </div>
+                        {rank.record_value && (
+                          <span className={`font-lexend text-sm font-bold ${isFirst ? 'text-pink-600 bg-pink-100' : 'text-gray-500 bg-white'} px-3 py-1 rounded-full`}>
+                            {rank.record_value}
+                          </span>
+                        )}
                       </div>
-                      {rank.record_value && (
-                        <span className="font-lexend text-sm text-gray-500">{rank.record_value}</span>
-                      )}
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
             </div>
           )}
