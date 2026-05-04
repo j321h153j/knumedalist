@@ -1,11 +1,29 @@
 import React from 'react';
 
-export default function EventCard({ icon, sportType, time, title, matchup, location, scoreLeft, scoreRight, status }) {
-  // 진행 완료(completed) 또는 진행 중(in_progress)일 때 점수 표시
-  const showScore = status === 'completed' || status === 'in_progress';
+export default function EventCard({ icon, sportType, time, title, location, scoreLeft, scoreRight, status, onClick }) {
+  // 진행 완료(completed)일 때만 점수 표시
+  const showScore = status === 'completed';
+  const isInProgress = status === 'in_progress';
 
   return (
-    <article className="bg-white rounded-[24px] p-8 shadow-[0px_10px_30px_-5px_rgba(0,0,0,0.05)] border border-gray-100 flex flex-col w-full relative overflow-hidden group hover:-translate-y-1 transition-transform duration-300 cursor-pointer">
+    <article 
+      onClick={onClick}
+      className={`bg-white rounded-[24px] p-8 shadow-[0px_10px_30px_-5px_rgba(0,0,0,0.05)] border flex flex-col w-full relative overflow-hidden group hover:-translate-y-1 transition-all duration-300 cursor-pointer ${
+      isInProgress 
+        ? 'border-transparent ring-2 ring-pink-500 shadow-[0px_0px_24px_rgba(255,77,151,0.25)]' 
+        : 'border-gray-100'
+    }`}>
+      
+      {isInProgress && (
+        <div className="absolute top-0 right-0 bg-gradient-to-r from-pink-500 to-orange-400 text-white font-bold font-cafe24 text-[13px] tracking-widest px-5 py-2 rounded-bl-[24px] z-20 flex items-center gap-2">
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
+          </span>
+          진행중
+        </div>
+      )}
+
       <div className="flex items-center justify-between w-full relative z-10">
         <div className="flex items-center gap-3">
           <div className="w-14 h-14 rounded-full bg-pink-50 flex items-center justify-center">
@@ -20,8 +38,7 @@ export default function EventCard({ icon, sportType, time, title, matchup, locat
       
       <div className="pt-2 relative z-10">
         <h2 className="text-[24px] font-bold text-gray-900 mt-1 font-cafe24">{title}</h2>
-        <p className="text-[18px] font-bold text-[#5B002D] mt-1 font-cafe24">{matchup}</p>
-        <p className="text-[14px] text-gray-400 mt-1 font-lexend">{location}</p>
+        {location && <p className="text-[14px] text-gray-400 mt-1 font-lexend">{location}</p>}
       </div>
       
       {showScore && (

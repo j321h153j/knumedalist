@@ -3,6 +3,7 @@ const demoMinutes = toMinutes(demoTime);
 
 const SUPABASE_URL = "https://texlipqnzkoylzeowvyg.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_S63yxUuVD_ld3bV0-aACUw_sck9ipiF";
+const TEST_LOGIN_DOMAIN = "@test.local";
 
 const app = document.querySelector("#admin-app");
 const topbarNote = document.querySelector("#admin-topbar-note");
@@ -90,19 +91,30 @@ function timestampToClock(value) {
   return matched ? `${matched[1]}:${matched[2]}` : "";
 }
 
-function getStatus(start, end) {
+function getStatus(start, end, referenceMinutes = demoMinutes) {
   const startMinutes = toMinutes(start);
   const endMinutes = toMinutes(end);
-  if (demoMinutes >= startMinutes && demoMinutes < endMinutes) return "\uC9C4\uD589 \uC911";
-  if (demoMinutes >= endMinutes) return "\uC885\uB8CC";
+  if (referenceMinutes >= startMinutes && referenceMinutes < endMinutes) return "\uC9C4\uD589 \uC911";
+  if (referenceMinutes >= endMinutes) return "\uC885\uB8CC";
   return "\uC608\uC815";
+}
+
+function getCurrentKoreaMinutes() {
+  const parts = koreaClockFormatter.formatToParts(new Date());
+  const hour = Number(parts.find((part) => part.type === "hour")?.value ?? 0);
+  const minute = Number(parts.find((part) => part.type === "minute")?.value ?? 0);
+  return hour * 60 + minute;
+}
+
+function getBoothTimeStatus(booth) {
+  return getStatus(booth.start, booth.end, getCurrentKoreaMinutes());
 }
 
 function getBoothStatus(booth) {
   if (booth?.status === "in_progress" || booth?.status === "open") return "\uC6B4\uC601 \uC911";
   if (booth?.status === "completed" || booth?.status === "closed") return "\uC885\uB8CC";
   if (booth?.status === "paused") return "\uC77C\uC2DC \uC911\uB2E8";
-  return getStatus(booth.start, booth.end).replace("\uC9C4\uD589 \uC911", "\uC6B4\uC601 \uC911");
+  return getBoothTimeStatus(booth).replace("\uC9C4\uD589 \uC911", "\uC6B4\uC601 \uC911").replace("\uC608\uC815", "\uC6B4\uC601 \uC804");
 }
 
 function statusClass(status) {
@@ -261,22 +273,33 @@ function isItemCompleted(item) {
   return isGameItem(item) ? isGameCompleted(item) : isBoothCompleted(item);
 }
 
+function isBoothInputOpen(booth) {
+  if (!booth) return false;
+  const status = String(booth.status ?? "");
+  if (["in_progress", "live", "started", "open"].includes(status)) return true;
+  const session = getBoothSession(booth.id);
+  if (["open", "in_progress", "started"].includes(String(session?.sessionStatus ?? ""))) return true;
+  const timeStatus = getBoothTimeStatus(booth);
+  return timeStatus === "\uC9C4\uD589 \uC911" || timeStatus === "\uC885\uB8CC";
+}
+
 function isItemStarted(item) {
   if (!item) return false;
   if (isItemCompleted(item)) return true;
   const status = String(item.status ?? "");
   if (["in_progress", "live", "started", "open"].includes(status)) return true;
   if (!isGameItem(item)) {
-    const session = getBoothSession(item.id);
-    if (["open", "in_progress", "started"].includes(String(session?.sessionStatus ?? ""))) return true;
+    return isBoothInputOpen(item);
   }
   return false;
 }
 
 function getItemStatusLabel(item, hasPermission = true) {
   if (!hasPermission) return "\uAD8C\uD55C \uC5C6\uC74C";
-  if (!isGameItem(item) && isScoringBooth(item) && isItemStarted(item) && !isItemCompleted(item)) {
-    return "\uC785\uB825 \uC911";
+  if (!isGameItem(item)) {
+    if (isItemCompleted(item)) return "\uC785\uB825 \uC644\uB8CC";
+    if (isItemStarted(item)) return isScoringBooth(item) ? "\uC785\uB825 \uC911" : "\uC6B4\uC601 \uC911";
+    return "\uC6B4\uC601 \uC804";
   }
   if (isItemCompleted(item)) return "\uC785\uB825 \uC644\uB8CC";
   if (isItemStarted(item)) return "\uC9C4\uD589 \uC911";
@@ -303,6 +326,7 @@ function getItemActionLabel(item) {
     if (isGameItem(item)) return "\uC791\uC131\uD558\uAE30";
     return isScoringBooth(item) ? "\uAE30\uB85D \uC785\uB825" : "\uC0C1\uD0DC \uC785\uB825";
   }
+  if (!isGameItem(item)) return "\uC6B4\uC601 \uC804";
   return "\uC2DC\uC791";
 }
 
@@ -410,6 +434,52 @@ function getQualifierGames(game) {
     .filter(Boolean);
 }
 
+function getScoreDetail(result) {
+  if (!result) return "";
+  const baseScore =
+    result.leftScore === null || result.rightScore === null || result.leftScore === undefined || result.rightScore === undefined
+      ? ""
+      : `${result.leftScore}:${result.rightScore}`;
+  const tiebreakScore =
+    result.tiebreakType &&
+    result.tiebreakType !== "none" &&
+    result.leftTiebreakScore !== null &&
+    result.rightTiebreakScore !== null &&
+    result.leftTiebreakScore !== undefined &&
+    result.rightTiebreakScore !== undefined
+      ? `${getTiebreakLabel(result.tiebreakType)} ${result.leftTiebreakScore}:${result.rightTiebreakScore}`
+      : "";
+
+  return [baseScore, tiebreakScore].filter(Boolean).join(" · ");
+}
+
+function getResultDetailLabel(game, result) {
+  if (!result) return "결과 미입력";
+
+  const teams =
+    result.leftTeamId && result.rightTeamId
+      ? `${getTeamName(result.leftTeamId)} vs ${getTeamName(result.rightTeamId)}`
+      : getMatchLabel(game);
+  const score = getScoreDetail(result);
+  const winner = result.winnerTeamId ? `${getTeamName(result.winnerTeamId)} 승` : "승자 미확정";
+
+  return [teams, score, winner].filter(Boolean).join(" · ");
+}
+
+function getAdvancementRuleText(game) {
+  const prefix = getBracketPrefix(game);
+  if (prefix === "\uB18D\uAD6C" || prefix === "\uD48B\uC0B4") {
+    return "\uC608\uC120 \uC2B9\uC790 \uB450 \uD300 \uC911 \uB4DD\uC2E4\uCC28\uAC00 \uB354 \uD070 \uD300\uC774 \uACB0\uC2B9\uC73C\uB85C \uC9C1\uD589\uD569\uB2C8\uB2E4. \uB4DD\uC2E4\uCC28\uAC00 \uAC19\uC73C\uBA74 \uB2E4\uB4DD\uC810\uC73C\uB85C \uBE44\uAD50\uD569\uB2C8\uB2E4.";
+  }
+  if (prefix === "\uC904\uB2E4\uB9AC\uAE30") {
+    return "\uC608\uC120 \uC2B9\uC790 \uB450 \uD300 \uC911 3\uD310 2\uC120\uC5D0\uC11C \uD328\uAC00 \uC801\uC740 \uD300\uC774 \uBA3C\uC800 \uACB0\uC2B9\uC73C\uB85C \uAC11\uB2C8\uB2E4. \uB458 \uB2E4 \uBB34\uD328\uBA74 \uC2DC\uAC04\uC774 \uB354 \uC9E7\uC740 \uD300\uC774 \uC6B0\uC120\uC785\uB2C8\uB2E4.";
+  }
+  if (prefix === "\uC5EC\uC790 \uD53C\uAD6C" || prefix === "\uB0A8\uC790 \uD53C\uAD6C") {
+    return "\uD53C\uAD6C\uB294 \uC608\uC120 \uC2B9\uC790 \uB450 \uD300 \uC911 \uD328\uC218\uAC00 \uC801\uC740 \uD300\uC774 \uBA3C\uC800 \uACB0\uC2B9\uC73C\uB85C \uAC11\uB2C8\uB2E4. \uD328\uC218\uAC00 \uAC19\uC73C\uBA74 \uC804\uCCB4 \uACBD\uAE30\uC5D0\uC11C \uC790\uAE30 \uD300 \uC0DD\uC874\uC790 \uC218 \uD569\uACC4\uAC00 \uB354 \uB9CE\uC740 \uD300\uC774 \uC6B0\uC120\uC785\uB2C8\uB2E4.";
+  }
+  return "\uC120\uD0DD\uD55C \uD300\uC740 \uBD80\uACB0\uC2B9\uC73C\uB85C, \uB0A8\uC740 \uD300\uC740 \uACB0\uC2B9\uC73C\uB85C \uC790\uB3D9 \uBC30\uC815\uB429\uB2C8\uB2E4.";
+}
+
 function getQualifierWinnerOptions(game) {
   return getQualifierGames(game)
     .map((qualifier) => {
@@ -419,10 +489,8 @@ function getQualifierWinnerOptions(game) {
         result,
         teamId: result?.winnerTeamId ?? null,
         teamName: result?.winnerTeamId ? getTeamName(result.winnerTeamId) : "",
-        score:
-          result?.leftScore === null || result?.rightScore === null || result?.leftScore === undefined
-            ? ""
-            : `${result.leftScore}:${result.rightScore}`,
+        score: getScoreDetail(result),
+        detail: getResultDetailLabel(qualifier, result),
       };
     })
     .filter((option) => option.teamId);
@@ -438,6 +506,42 @@ function canShowManualAdvancement(game) {
 
   const options = getQualifierWinnerOptions(game);
   return options.length === 2 && options[0].teamId !== options[1].teamId;
+}
+
+function renderReadinessPanel(game, readiness) {
+  const qualifierRows = getQualifierGames(game)
+    .map((qualifier) => {
+      const result = getGameResult(qualifier.id);
+      const completed = Boolean(result?.winnerTeamId);
+      const label = completed
+        ? getResultDetailLabel(qualifier, result)
+        : result?.leftTeamId && result?.rightTeamId
+          ? `${getTeamName(result.leftTeamId)} vs ${getTeamName(result.rightTeamId)} · 결과 미입력`
+          : "대진 미완성";
+
+      return `
+        <li class="readiness-item ${completed ? "done" : ""}">
+          <span>${escapeHtml(qualifier.title)}</span>
+          <strong>${escapeHtml(completed ? "입력 완료" : "대기")}</strong>
+          <p>${escapeHtml(label)}</p>
+        </li>
+      `;
+    })
+    .join("");
+
+  return `
+    <div class="readiness-panel">
+      <strong>아직 시작할 수 없습니다</strong>
+      <p>${escapeHtml(readiness.reason)}</p>
+      ${
+        qualifierRows
+          ? `<ul class="readiness-list">${qualifierRows}</ul>`
+          : readiness.dependsOn.length
+            ? `<p class="readiness-needed">${escapeHtml(readiness.dependsOn.join(" / "))}</p>`
+            : ""
+      }
+    </div>
+  `;
 }
 
 async function boot() {
@@ -693,11 +797,11 @@ async function handleLoginSubmit(formData) {
     return;
   }
 
-  const email = String(formData.get("email") ?? "").trim();
+  const email = normalizeLoginEmail(formData.get("email"));
   const password = String(formData.get("password") ?? "");
 
   if (!email || !password) {
-    state.auth.error = "\uC774\uBA54\uC77C\uACFC \uBE44\uBC00\uBC88\uD638\uB97C \uC785\uB825\uD574 \uC8FC\uC138\uC694.";
+    state.auth.error = "\uC544\uC774\uB514\uC640 \uBE44\uBC00\uBC88\uD638\uB97C \uC785\uB825\uD574 \uC8FC\uC138\uC694.";
     render();
     return;
   }
@@ -718,6 +822,12 @@ async function handleLoginSubmit(formData) {
     state.auth.pending = null;
     render();
   }
+}
+
+function normalizeLoginEmail(value) {
+  const loginId = String(value ?? "").trim();
+  if (!loginId) return "";
+  return loginId.includes("@") ? loginId : `${loginId}${TEST_LOGIN_DOMAIN}`;
 }
 
 async function handleLogout() {
@@ -1071,7 +1181,7 @@ async function handleResultSubmit(form) {
       10000,
       "\uC800\uC7A5\uC740 \uC644\uB8CC\uB410\uC9C0\uB9CC \uCD5C\uC2E0 \uB370\uC774\uD130 \uC7AC\uC870\uD68C\uAC00 \uC9C0\uC5F0\uB418\uC5C8\uC2B5\uB2C8\uB2E4. \uC0C8\uB85C\uACE0\uCE68\uD558\uBA74 \uCD5C\uC2E0 \uC0C1\uD0DC\uB97C \uBCFC \uC218 \uC788\uC2B5\uB2C8\uB2E4.",
     );
-    state.adminFormId = null;
+    returnToFormList();
     shouldRender = true;
   } catch (error) {
     setInlineFormFeedback(form, "error", error.message);
@@ -1115,6 +1225,7 @@ async function handleBoothSubmit(form) {
       10000,
       "\uC800\uC7A5\uC740 \uC644\uB8CC\uB410\uC9C0\uB9CC \uCD5C\uC2E0 \uB370\uC774\uD130 \uC7AC\uC870\uD68C\uAC00 \uC9C0\uC5F0\uB418\uC5C8\uC2B5\uB2C8\uB2E4. \uC0C8\uB85C\uACE0\uCE68\uD558\uBA74 \uCD5C\uC2E0 \uC0C1\uD0DC\uB97C \uBCFC \uC218 \uC788\uC2B5\uB2C8\uB2E4.",
     );
+    returnToFormList();
     shouldRender = true;
   } catch (error) {
     setInlineFormFeedback(form, "error", error.message);
@@ -1158,14 +1269,14 @@ async function handleStartItem(targetId, targetType) {
   }
 }
 
-async function handleManualAdvancementSubmit(form) {
+async function handleManualAdvancementSubmit(form, submitter = null) {
   if (!state.auth.client) return;
   if (state.auth.pending === "override") return;
 
   const game = getGame(state.adminFormId);
   const options = game ? getQualifierWinnerOptions(game) : [];
   const groupKey = form.dataset.groupKey;
-  const weakerTeamId = readTextField(form, "weaker_team_id");
+  const weakerTeamId = submitter?.dataset.manualWeakerTeamId || submitter?.value || readTextField(form, "weaker_team_id");
   const betterTeamId = options.find((option) => option.teamId !== weakerTeamId)?.teamId ?? "";
 
   if (!groupKey || !betterTeamId || !weakerTeamId) {
@@ -1233,6 +1344,10 @@ function normalizeVisibleTab() {
 
   if (isSuperAdmin() && state.tab === "assignments") {
     state.tab = "forms";
+  }
+
+  if (!isSuperAdmin() && state.tab === "forms" && !state.adminFormId) {
+    state.tab = "assignments";
   }
 }
 
@@ -1374,8 +1489,8 @@ function renderAuthGate() {
         </div>
         <div class="form-grid">
           <div class="field">
-            <label>\uC774\uBA54\uC77C</label>
-            <input name="email" type="email" placeholder="lead@test.local" />
+            <label>\uC544\uC774\uB514</label>
+            <input name="email" type="text" inputmode="email" autocomplete="username" placeholder="lead 또는 lead@test.local" />
           </div>
           <div class="field">
             <label>\uBE44\uBC00\uBC88\uD638</label>
@@ -1583,8 +1698,7 @@ function renderAssignments() {
 }
 
 function renderTaskCard(task) {
-  const item = task.item;
-  const buttonLabel = task.completed ? "\uC218\uC815" : task.started ? "\uC791\uC131\uD558\uAE30" : "\uC2DC\uC791";
+  const buttonLabel = task.action;
   return `
     <article class="event-row ${task.hasPermission ? "" : "blocked"}">
       <div class="row-head">
@@ -1638,7 +1752,7 @@ function renderAssignedBoothCard(booth) {
         <span class="pill ${statusClass(getBoothStatus(booth))}">${escapeHtml(getBoothStatus(booth))}</span>
       </div>
       <div class="action-row">
-        <button class="text-button" data-open-form="${escapeHtml(booth.id)}" type="button">${isScoringBooth(booth) ? "\uAE30\uB85D \uC785\uB825" : "\uC0C1\uD0DC \uC785\uB825"}</button>
+        <button class="text-button" data-open-form="${escapeHtml(booth.id)}" type="button">${escapeHtml(getItemActionLabel(booth))}</button>
       </div>
     </article>
   `;
@@ -1667,6 +1781,35 @@ function getResultSummary(item) {
   return getBoothSession(item.id)?.sessionStatus === "closed" ? "\uC6B4\uC601 \uC885\uB8CC" : "\uC0C1\uD0DC \uC800\uC7A5";
 }
 
+function getResultSummaryParts(item) {
+  if (!isGameItem(item)) {
+    return { primary: getResultSummary(item), secondary: "" };
+  }
+
+  if (item.sport === "\uACC4\uC8FC") {
+    const rankings = getGameRankings(item.id);
+    const winner = rankings.find((ranking) => ranking.rankOrder === 1);
+    return winner ? { primary: `1\uC704 ${getTeamName(winner.teamId)}`, secondary: "" } : { primary: "\uACB0\uACFC \uBBF8\uC785\uB825", secondary: "" };
+  }
+
+  const result = getGameResult(item.id);
+  if (!result?.winnerTeamId) {
+    return { primary: getMatchLabel(item), secondary: "" };
+  }
+
+  const score =
+    result.leftScore === null || result.rightScore === null ? "" : `${result.leftScore}:${result.rightScore}`;
+  const tiebreak =
+    result.tiebreakType && result.tiebreakType !== "none" && result.leftTiebreakScore !== null && result.rightTiebreakScore !== null
+      ? `${getTiebreakLabel(result.tiebreakType)} ${result.leftTiebreakScore}:${result.rightTiebreakScore}`
+      : "";
+
+  return {
+    primary: `${getTeamName(result.winnerTeamId)} \uC2B9`,
+    secondary: [score, tiebreak].filter(Boolean).join(" · "),
+  };
+}
+
 function getTiebreakLabel(type) {
   if (type === "free_throw") return "\uC790\uC720\uD22C";
   if (type === "penalty_shootout") return "\uC2B9\uBD80\uCC28\uAE30";
@@ -1684,20 +1827,24 @@ function getChallengeGroups() {
 }
 
 function renderChallengeListCard(task) {
-  const buttonLabel = task.hasPermission
-    ? task.completed
-      ? "\uC218\uC815"
-      : task.started
-        ? "\uC791\uC131\uD558\uAE30"
-        : "\uC2DC\uC791"
-    : "\uAD8C\uD55C \uC5C6\uC74C";
+  const buttonLabel = task.hasPermission ? task.action : "\uAD8C\uD55C \uC5C6\uC74C";
+  const resultSummary = task.completed ? getResultSummaryParts(task.item) : null;
   return `
     <article class="event-row ${task.hasPermission ? "" : "blocked"}">
       <div class="row-head">
         <div>
           <h3>${escapeHtml(task.title)}</h3>
           <p class="time">${escapeHtml(task.subtitle)}</p>
-          <p class="description">${escapeHtml(task.completed ? getResultSummary(task.item) : getMatchLabel(task.item) || task.subtitle)}</p>
+          ${
+            resultSummary
+              ? `
+                <div class="result-summary-highlight">
+                  <strong>${escapeHtml(resultSummary.primary)}</strong>
+                  ${resultSummary.secondary ? `<span>${escapeHtml(resultSummary.secondary)}</span>` : ""}
+                </div>
+              `
+              : `<p class="description">${escapeHtml(getMatchLabel(task.item) || task.subtitle)}</p>`
+          }
         </div>
         <span class="pill ${statusClass(task.status)}">${escapeHtml(task.status)}</span>
       </div>
@@ -1734,7 +1881,8 @@ function renderStartPanel(item, type) {
   const isGame = type === "game";
   const readiness = isGame ? getGameReadiness(item.id) : { ready: true, reason: "", dependsOn: [] };
   const saveBusy = state.auth.pending === "start";
-  const manualOverride = isGame && canShowManualAdvancement(item) ? renderManualAdvancementPanel(item) : "";
+  const manualOverride = !readiness.ready && isGame && canShowManualAdvancement(item) ? renderManualAdvancementPanel(item) : "";
+  const statusLabel = readiness.ready ? "\uC2DC\uC791 \uC804" : "\uB300\uC9C4 \uB300\uAE30";
   return `
     <section class="form-card">
       <div class="row-head">
@@ -1742,19 +1890,40 @@ function renderStartPanel(item, type) {
           <h2>${escapeHtml(item.title ?? item.name)}</h2>
           <p class="time">${escapeHtml(getItemSubtitle(item))}</p>
         </div>
-        <span class="pill next">\uC2DC\uC791 \uC804</span>
+        <span class="pill ${readiness.ready ? "next" : "alert"}">${escapeHtml(statusLabel)}</span>
       </div>
       ${
         readiness.ready
           ? ""
-          : `<div class="todo-alert">${escapeHtml(readiness.reason)}<br />${escapeHtml(readiness.dependsOn.join(" / "))}</div>`
+          : renderReadinessPanel(item, readiness)
       }
-      <div class="action-row">
-        <button class="text-button" data-start-item="${escapeHtml(item.id)}" data-start-type="${escapeHtml(type)}" type="button" ${readiness.ready && !saveBusy ? "" : "disabled"}>
-          ${saveBusy ? "\uC2DC\uC791 \uCC98\uB9AC \uC911" : "\uC2DC\uC791"}
-        </button>
-      </div>
+      ${
+        readiness.ready
+          ? `
+            <div class="action-row">
+              <button class="text-button" data-start-item="${escapeHtml(item.id)}" data-start-type="${escapeHtml(type)}" type="button" ${saveBusy ? "disabled" : ""}>
+                ${saveBusy ? "\uC2DC\uC791 \uCC98\uB9AC \uC911" : "\uC2DC\uC791"}
+              </button>
+            </div>
+          `
+          : ""
+      }
       ${manualOverride}
+    </section>
+  `;
+}
+
+function renderBoothWaitingPanel(booth) {
+  return `
+    <section class="form-card">
+      <div class="row-head">
+        <div>
+          <h2>${escapeHtml(booth.name)}</h2>
+          <p class="time">${escapeHtml(formatRange(booth.start, booth.end))} · ${escapeHtml(booth.location)}</p>
+        </div>
+        <span class="pill next">\uC6B4\uC601 \uC804</span>
+      </div>
+      <div class="todo-alert">\uBD80\uC2A4 \uC6B4\uC601 \uC2DC\uAC04\uC774 \uB418\uBA74 \uC785\uB825\uC774 \uC5F4\uB9BD\uB2C8\uB2E4.</div>
     </section>
   `;
 }
@@ -1763,34 +1932,40 @@ function renderManualAdvancementPanel(game) {
   const options = getQualifierWinnerOptions(game);
   const groupKey = getQualifierGroupKey(game);
   const busy = state.auth.pending === "override";
+  const ruleText = getAdvancementRuleText(game);
 
   if (!groupKey || options.length !== 2) return "";
 
   return `
-    <form class="info-panel" data-manual-advancement-form data-group-key="${escapeHtml(groupKey)}">
-      <h4>\uC218\uB3D9 \uB300\uC9C4 \uACB0\uC815</h4>
-      ${renderFormFeedback()}
-      <div class="form-grid">
-        <div class="field">
-          <label>\uBD80\uACB0\uC2B9 \uC9C4\uCD9C \uD300</label>
-          <select name="weaker_team_id" required>
-            <option value="">\uC120\uD0DD</option>
-            ${options
-              .map(
-                (option) => `
-                  <option value="${escapeHtml(option.teamId)}">
-                    ${escapeHtml(option.teamName)} · ${escapeHtml(option.game.title)} ${escapeHtml(option.score)}
-                  </option>
-                `,
-              )
-              .join("")}
-          </select>
-        </div>
+    <form class="manual-panel" data-manual-advancement-form data-group-key="${escapeHtml(groupKey)}">
+      <div class="manual-panel-head">
+        <h3>\uBD80\uACB0\uC2B9 \uC9C4\uCD9C \uD300 \uC120\uD0DD</h3>
+        <p>\uC120\uD0DD\uD55C \uD300\uC740 \uBD80\uACB0\uC2B9\uC73C\uB85C, \uB0A8\uC740 \uD300\uC740 \uACB0\uC2B9\uC73C\uB85C \uC790\uB3D9 \uBC30\uC815\uB429\uB2C8\uB2E4.</p>
       </div>
-      <div class="action-row">
-        <button class="text-button" type="submit" ${busy ? "disabled" : ""}>
-          ${busy ? "\uBC30\uC815 \uC911" : "\uBC30\uC815"}
-        </button>
+      <div class="manual-rule-note">
+        <strong>\uD310\uB2E8 \uAE30\uC900</strong>
+        <p>${escapeHtml(ruleText)}</p>
+      </div>
+      ${renderFormFeedback()}
+      <div class="manual-choice-grid">
+        ${options
+          .map(
+            (option) => `
+              <button
+                class="manual-choice-button"
+                name="weaker_team_id"
+                value="${escapeHtml(option.teamId)}"
+                data-manual-weaker-team-id="${escapeHtml(option.teamId)}"
+                type="submit"
+                ${busy ? "disabled" : ""}
+              >
+                <span>\uBD80\uACB0\uC2B9\uC73C\uB85C \uBCF4\uB0B4\uAE30</span>
+                <strong>${escapeHtml(option.teamName)}</strong>
+                <small>${escapeHtml(option.detail)}</small>
+              </button>
+            `,
+          )
+          .join("")}
       </div>
     </form>
   `;
@@ -1814,7 +1989,11 @@ function renderChallengeDetail(targetId) {
     `;
   }
 
-  if (!isItemStarted(item) && !isItemCompleted(item)) {
+  if (!game && !isItemStarted(item) && !isItemCompleted(item)) {
+    return renderBoothWaitingPanel(booth);
+  }
+
+  if (game && !isItemStarted(item) && !isItemCompleted(item)) {
     return renderStartPanel(item, type);
   }
 
@@ -1887,14 +2066,16 @@ function renderMatchSummary(result) {
     return `<div class="todo-alert">\uC774 \uACBD\uAE30\uC758 game_results \uD589\uC744 \uC544\uC9C1 \uCC3E\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4.</div>`;
   }
 
-  const scoreLabel =
+  const scoreMarkup =
     result.leftScore === null || result.rightScore === null
-      ? "\uC810\uC218 \uBBF8\uC785\uB825"
-      : `${result.leftScore} : ${result.rightScore}`;
-  const winnerLabel = result.winnerTeamId ? `\uC2B9\uC790: ${getTeamName(result.winnerTeamId)}` : "\uC2B9\uC790 \uBBF8\uD655\uC815";
-  const tiebreakLabel =
+      ? `<span class="match-result-empty">\uC810\uC218 \uBBF8\uC785\uB825</span>`
+      : `<span class="match-result-score">${escapeHtml(`${result.leftScore} : ${result.rightScore}`)}</span>`;
+  const winnerMarkup = result.winnerTeamId
+    ? `<span class="match-result-winner">\uC2B9\uC790: ${escapeHtml(getTeamName(result.winnerTeamId))}</span>`
+    : `<span class="match-result-winner muted">\uC2B9\uC790 \uBBF8\uD655\uC815</span>`;
+  const tiebreakMarkup =
     result.tiebreakType && result.tiebreakType !== "none" && result.leftTiebreakScore !== null && result.rightTiebreakScore !== null
-      ? ` · ${getTiebreakLabel(result.tiebreakType)} ${result.leftTiebreakScore} : ${result.rightTiebreakScore}`
+      ? `<span class="match-result-tiebreak">${escapeHtml(`${getTiebreakLabel(result.tiebreakType)} ${result.leftTiebreakScore} : ${result.rightTiebreakScore}`)}</span>`
       : "";
 
   return `
@@ -1904,7 +2085,12 @@ function renderMatchSummary(result) {
         <span>VS</span>
         <strong>${escapeHtml(getTeamName(result.rightTeamId))}</strong>
       </div>
-      <p class="helper-text">${escapeHtml(scoreLabel)} · ${escapeHtml(winnerLabel)}${escapeHtml(tiebreakLabel)}</p>
+      <p class="match-result-line">
+        ${scoreMarkup}
+        <span class="match-result-divider">·</span>
+        ${winnerMarkup}
+        ${tiebreakMarkup ? `<span class="match-result-divider">·</span>${tiebreakMarkup}` : ""}
+      </p>
     </div>
   `;
 }
@@ -2484,7 +2670,7 @@ document.addEventListener("submit", async (event) => {
   const manualAdvancementForm = event.target.closest("[data-manual-advancement-form]");
   if (manualAdvancementForm && isLoggedIn()) {
     event.preventDefault();
-    await handleManualAdvancementSubmit(manualAdvancementForm);
+    await handleManualAdvancementSubmit(manualAdvancementForm, event.submitter);
     return;
   }
 

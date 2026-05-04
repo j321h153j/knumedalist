@@ -38,8 +38,11 @@ export default {
         "on-background": "#26181c",
       },
       fontFamily: {
-        "lexend": ["Lexend", "sans-serif"],
+        "sans": ["'Pretendard Variable'", "Pretendard", "sans-serif"],
+        "pretendard": ["'Pretendard Variable'", "Pretendard", "sans-serif"],
+        "lexend": ["Lexend", "'Pretendard Variable'", "Pretendard", "sans-serif"],
         "cafe24": ["Cafe24Ssurround", "sans-serif"],
+        "ginsaeng": ["'210 긴생머리'", "'210 긴생머리 R'", "'210 Ginsaengmeori'", "Cafe24Ssurround", "sans-serif"],
       },
       spacing: {
         "stack-gap": "16px",

@@ -9,7 +9,11 @@ export default function BoothCard({ icon, title, location, time, onClick }) {
       <div className="flex items-center justify-between w-full relative z-10">
         <div className="flex items-center gap-3">
           <div className="w-14 h-14 rounded-full bg-orange-50 flex items-center justify-center">
-            <span className="material-symbols-outlined text-[28px] text-orange-600" style={{fontVariationSettings: "'FILL' 1"}}>{icon || 'storefront'}</span>
+            {(icon || 'storefront').startsWith('mdi-') ? (
+              <i className={`mdi ${icon} text-[28px] text-orange-600`}></i>
+            ) : (
+              <span className="material-symbols-outlined text-[28px] text-orange-600" style={{fontVariationSettings: "'FILL' 1"}}>{icon || 'storefront'}</span>
+            )}
           </div>
           <div className="flex flex-col">
             <span className="inline-block w-fit px-3 py-1 rounded-full text-[10px] font-bold tracking-wider bg-orange-50 text-orange-600 uppercase">BOOTH</span>

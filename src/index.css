@@ -3,6 +3,13 @@
 @tailwind utilities;
 
 @layer base {
+  @font-face {
+    font-family: '210 긴생머리';
+    src: url('/210 긴생머리R.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+  }
+  
   .material-symbols-outlined {
     font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
   }
@@ -13,3 +20,12 @@
 }
 
 .pb-safe { padding-bottom: env(safe-area-inset-bottom, 20px); }
+
+/* 스크롤바 숨기기 (스크롤 기능은 유지) */
+.scrollbar-hide {
+  -ms-overflow-style: none;     /* IE, Edge */
+  scrollbar-width: none;        /* Firefox */
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;                /* Chrome, Safari, Opera */
+}

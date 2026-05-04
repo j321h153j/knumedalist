@@ -442,6 +442,26 @@ begin
       ),
       '[]'::jsonb
     ),
+    'game_advancements', coalesce(
+      (
+        select jsonb_agg(
+          jsonb_build_object(
+            'from_game_id', ga.from_game_id,
+            'to_game_id', ga.to_game_id,
+            'to_slot', ga.to_slot,
+            'rule_type', ga.rule_type,
+            'group_key', ga.group_key
+          )
+          order by to_game.scheduled_start_time, to_game.title, ga.to_slot, from_game.scheduled_start_time, from_game.title
+        )
+        from public.game_advancements ga
+        join public.games from_game on from_game.id = ga.from_game_id
+        join public.games to_game on to_game.id = ga.to_game_id
+        where from_game.kind = 'game'
+          and to_game.kind = 'game'
+      ),
+      '[]'::jsonb
+    ),
     'game_result_sets', coalesce(
       (
         select jsonb_agg(to_jsonb(grs) order by grs.game_result_id, grs.set_number, grs.id)
@@ -465,8 +485,20 @@ begin
     ),
     'booth_sessions', coalesce(
       (
-        select jsonb_agg(to_jsonb(bs) order by bs.booth_id, bs.updated_at desc, bs.id)
+        select jsonb_agg(
+          jsonb_build_object(
+            'booth_id', bs.booth_id,
+            'title', bs.title,
+            'slot_order', bs.slot_order,
+            'session_status', bs.session_status,
+            'scheduled_start_time', bs.scheduled_start_time,
+            'scheduled_end_time', bs.scheduled_end_time
+          )
+          order by b.scheduled_start_time, b.name, bs.slot_order, bs.scheduled_start_time
+        )
         from public.booth_sessions bs
+        join public.booths b on b.id = bs.booth_id
+        where coalesce(b.visible, true) = true
       ),
       '[]'::jsonb
     ),
