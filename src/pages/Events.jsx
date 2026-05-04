@@ -162,6 +162,7 @@ export default function Events({ data }) {
                   icon={getIcon(game.sport)}
                   sportType={game.sport || 'EVENT'}
                   title={game.title}
+                  matchup={getMatchup(game)}
                   location={getLocation(game)}
                   time={timeStr}
                   status={game.status}

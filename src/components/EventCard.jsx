@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function EventCard({ icon, sportType, time, title, location, scoreLeft, scoreRight, status, onClick }) {
+export default function EventCard({ icon, sportType, time, title, matchup, location, scoreLeft, scoreRight, status, onClick }) {
   // 진행 완료(completed)일 때만 점수 표시
   const showScore = status === 'completed';
   const isInProgress = status === 'in_progress';
@@ -38,6 +38,7 @@ export default function EventCard({ icon, sportType, time, title, location, scor
       
       <div className="pt-2 relative z-10">
         <h2 className="text-[24px] font-bold text-gray-900 mt-1 font-cafe24">{title}</h2>
+        {matchup && <p className="text-pink-600 font-cafe24 text-[15px] mt-0.5">{matchup}</p>}
         {location && <p className="text-[14px] text-gray-400 mt-1 font-lexend">{location}</p>}
       </div>
       

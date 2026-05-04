@@ -1,9 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-export default function Info() {
+export default function Info({ cardNews }) {
   const [selectedMapPin, setSelectedMapPin] = useState(null);
   const [isMapOpen, setIsMapOpen] = useState(false);
+  const [selectedCard, setSelectedCard] = useState(null);
+  const [currentImgIdx, setCurrentImgIdx] = useState(0);
+  const [touchStartX, setTouchStartX] = useState(null);
+  const [touchEndX, setTouchEndX] = useState(null);
 
   const closeMap = () => {
     setIsMapOpen(false);
@@ -12,64 +16,67 @@ export default function Info() {
     }
   };
 
-  // 모달 뒤로가기 및 ESC 닫기 제어
-  useEffect(() => {
-    if (isMapOpen) {
-      window.history.pushState({ modal: 'map' }, '');
+  const closeCard = () => {
+    setSelectedCard(null);
+    setCurrentImgIdx(0);
+    setTouchStartX(null);
+    setTouchEndX(null);
+    if (window.history.state?.modal === 'card') {
+      window.history.back();
     }
-  }, [isMapOpen]);
+  };
+
+  // 모달 뒤로가기 제어
+  useEffect(() => {
+    if (isMapOpen) window.history.pushState({ modal: 'map' }, '');
+    if (selectedCard) window.history.pushState({ modal: 'card' }, '');
+  }, [isMapOpen, selectedCard]);
 
   useEffect(() => {
     const handlePopState = () => {
       if (isMapOpen) setIsMapOpen(false);
+      if (selectedCard) {
+        setSelectedCard(null);
+        setCurrentImgIdx(0);
+        setTouchStartX(null);
+        setTouchEndX(null);
+      }
     };
-    const handleKeyDown = (e) => { 
-      if (e.key === 'Escape' && isMapOpen) closeMap(); 
-    };
-
     window.addEventListener('popstate', handlePopState);
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isMapOpen]);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [isMapOpen, selectedCard]);
 
-  // 카드뉴스 데이터 (임시 가이드라인)
-  const cardNews = [
-    {
-      id: 1,
-      category: "필독",
-      title: "이번 대회, 꼭 알아야 할 핵심 룰! 📝",
-      content: "모든 종목의 예선전은 단판승부로 진행되며, 무승부 시 연장전 없이 득실차를 따집니다.",
-      color: "from-pink-500 to-rose-500",
-      icon: "campaign"
-    },
-    {
-      id: 2,
-      category: "이벤트",
-      title: "스탬프 투어 100% 활용법 🏃‍♂️",
-      content: "각 부스를 체험하고 스탬프를 3개 모아오시면, 본부석에서 시원한 아이스티로 교환해 드립니다!",
-      color: "from-orange-400 to-amber-500",
-      icon: "local_cafe"
-    },
-    {
-      id: 3,
-      category: "우승상품",
-      title: "종합 우승 학과를 위한 특별한 보상 🏆",
-      content: "이번 행운제 종합 우승 학과에게는 학과 지원금 50만원과 우승 트로피가 수여됩니다.",
-      color: "from-blue-500 to-indigo-500",
-      icon: "workspace_premium"
-    },
-    {
-      id: 4,
-      category: "안전",
-      title: "다쳤을 때는 어떻게 하나요? 🏥",
-      content: "본부석 바로 옆에 의료진이 대기 중입니다. 찰과상 등 부상이 발생하면 즉시 의료 부스를 방문해주세요.",
-      color: "from-teal-400 to-emerald-500",
-      icon: "medical_services"
+  const handleTouchStart = (e) => {
+    e.stopPropagation(); // 상위 App.jsx의 탭 전환 스와이프 방지
+    setTouchStartX(e.targetTouches[0].clientX);
+  };
+
+  const handleTouchMove = (e) => {
+    e.stopPropagation(); // 상위 App.jsx의 탭 전환 스와이프 방지
+    setTouchEndX(e.targetTouches[0].clientX);
+  };
+
+  const handleTouchEnd = (e) => {
+    e.stopPropagation(); // 상위 App.jsx의 탭 전환 스와이프 방지
+    if (!touchStartX || !touchEndX) return;
+    const distance = touchStartX - touchEndX;
+    const isLeftSwipe = distance > 50;
+    const isRightSwipe = distance < -50;
+
+    if (isLeftSwipe) {
+      if (currentImgIdx < (selectedCard.image_urls?.length || 0) - 1) {
+        setCurrentImgIdx(prev => prev + 1);
+      } else {
+        closeCard();
+      }
+    } else if (isRightSwipe) {
+      if (currentImgIdx > 0) {
+        setCurrentImgIdx(prev => prev - 1);
+      }
     }
-  ];
+    setTouchStartX(null);
+    setTouchEndX(null);
+  };
 
   // 지도 주요 스팟
   const mapSpots = [
@@ -105,7 +112,6 @@ export default function Info() {
             alt="캠퍼스 맵" 
             className="w-full h-auto"
           />
-          {/* 돋보기 아이콘 오버레이 */}
           <div className="absolute bottom-3 right-3 w-10 h-10 bg-white/90 backdrop-blur-sm rounded-full shadow-md flex items-center justify-center text-gray-600">
             <span className="material-symbols-outlined text-xl">zoom_in</span>
           </div>
@@ -121,35 +127,41 @@ export default function Info() {
           </h2>
         </div>
         
-        {/* 세로형 리스트 (가로로 긴 카드) */}
         <div className="flex flex-col gap-4 px-5 pb-8">
-          {cardNews.map((card) => (
-            <motion.div 
-              key={card.id}
-              whileTap={{ scale: 0.98 }}
-              className={`w-full rounded-2xl bg-gradient-to-r ${card.color} p-5 flex items-center shadow-md relative overflow-hidden`}
-            >
-
-
-              <div className="flex-1 z-10 pr-2">
-                <div className="bg-white/20 backdrop-blur-sm w-fit px-2.5 py-0.5 rounded-full mb-2.5">
-                  <span className="text-white text-[10px] font-bold tracking-wide">{card.category}</span>
+          {cardNews && cardNews.length > 0 ? (
+            cardNews.map((card) => (
+              <motion.div 
+                key={card.id}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => setSelectedCard(card)}
+                className={`w-full rounded-2xl bg-gradient-to-r ${card.color_preset || 'from-pink-500 to-rose-500'} p-5 flex items-center shadow-md relative overflow-hidden cursor-pointer`}
+              >
+                <div className="flex-1 z-10 pr-2">
+                  <div className="bg-white/20 backdrop-blur-sm w-fit px-2.5 py-0.5 rounded-full mb-2.5">
+                    <span className="text-white text-[10px] font-bold tracking-wide">{card.category}</span>
+                  </div>
+                  <h3 className="font-cafe24 text-[17px] font-bold text-white leading-snug mb-1.5 break-keep">
+                    {card.title}
+                  </h3>
+                  {card.content && (
+                    <p className="font-lexend text-white/90 text-[12px] leading-relaxed break-keep">
+                      {card.content}
+                    </p>
+                  )}
                 </div>
-                <h3 className="font-cafe24 text-[17px] font-bold text-white leading-snug mb-1.5 break-keep">
-                  {card.title}
-                </h3>
-                <p className="font-lexend text-white/90 text-[12px] leading-relaxed break-keep">
-                  {card.content}
-                </p>
-              </div>
 
-              <div className="w-14 h-14 shrink-0 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center z-10">
-                <span className="material-symbols-outlined text-[28px] text-white" style={{fontVariationSettings: "'FILL' 1"}}>
-                  {card.icon}
-                </span>
-              </div>
-            </motion.div>
-          ))}
+                <div className="w-14 h-14 shrink-0 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center z-10">
+                  <span className="material-symbols-outlined text-[28px] text-white" style={{fontVariationSettings: "'FILL' 1"}}>
+                    {card.icon_name || 'campaign'}
+                  </span>
+                </div>
+              </motion.div>
+            ))
+          ) : (
+            <div className="text-center py-10 text-gray-400 font-lexend text-sm">
+              준비된 카드뉴스가 없습니다.
+            </div>
+          )}
         </div>
       </section>
 
@@ -196,6 +208,66 @@ export default function Info() {
             {/* 안내 텍스트 */}
             <div className="p-6 text-center text-white/50 text-xs font-lexend pointer-events-none">
               두 손가락으로 확대/축소할 수 있습니다.
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 카드뉴스 상세 모달 (이미지 뷰어) */}
+      <AnimatePresence>
+        {selectedCard && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[99999] bg-black flex flex-col"
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+          >
+            {/* 상단바 */}
+            <div className="flex items-center justify-between p-4 bg-black/50 backdrop-blur-md absolute top-0 left-0 w-full z-20">
+              <div className="flex flex-col">
+                <span className="text-white/60 text-[10px] font-bold uppercase tracking-widest">{selectedCard.category}</span>
+                <h3 className="text-white font-cafe24 text-sm truncate max-w-[200px]">{selectedCard.title}</h3>
+              </div>
+              <button 
+                onClick={closeCard}
+                className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center text-white"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            {/* 이미지 컨텐츠 */}
+            <div className="flex-1 relative flex items-center justify-center bg-zinc-900 overflow-hidden">
+              <AnimatePresence mode="wait">
+                <motion.img
+                  key={currentImgIdx}
+                  initial={{ opacity: 0, x: 50 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -50 }}
+                  transition={{ duration: 0.2 }}
+                  src={selectedCard.image_urls[currentImgIdx]}
+                  alt={`카드뉴스 ${currentImgIdx + 1}`}
+                  className="max-w-full max-h-full object-contain shadow-2xl pointer-events-none"
+                />
+              </AnimatePresence>
+
+              {/* 페이지 표시기 */}
+              <div className="absolute bottom-10 left-0 w-full flex justify-center gap-1.5 z-20">
+                {selectedCard.image_urls?.map((_, idx) => (
+                  <div 
+                    key={idx}
+                    className={`h-1.5 rounded-full transition-all duration-300 ${idx === currentImgIdx ? 'w-6 bg-pink-500' : 'w-1.5 bg-white/30'}`}
+                  />
+                ))}
+              </div>
+
+              {/* 가이드 안내 */}
+              <div className="absolute bottom-4 left-0 w-full text-center text-white/30 text-[10px] font-lexend pointer-events-none">
+                왼쪽으로 스와이프하면 다음 페이지로 넘어갑니다.
+              </div>
             </div>
           </motion.div>
         )}

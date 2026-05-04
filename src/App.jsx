@@ -72,6 +72,7 @@ export default function App() {
   const [currentTab, setCurrentTab] = useState('home')
   const [eventData, setEventData] = useState(null)
   const [scoreboardData, setScoreboardData] = useState(null)
+  const [cardNewsData, setCardNewsData] = useState([])
   const [loading, setLoading] = useState(true)
   const [tabKey, setTabKey] = useState(0)
 
@@ -91,8 +92,15 @@ export default function App() {
 
   useEffect(() => {
     const handlePopState = (e) => {
-      // 뒤로가기 발생 시, 현재 탭이 홈이 아니면 무조건 홈으로 복귀
-      if (currentTab !== 'home') {
+      // 1. 만약 뒤로가기 결과가 '모달' 상태라면, 해당 컴포넌트에서 처리하도록 둡니다.
+      if (e.state?.modal) return;
+
+      // 2. 만약 히스토리에 특정 '탭' 정보가 있다면 해당 탭으로 이동합니다.
+      if (e.state?.tab) {
+        setCurrentTab(e.state.tab);
+      } 
+      // 3. 히스토리 상태가 없거나(초기 상태) 다른 경우, 현재 홈이 아니라면 홈으로 복귀합니다.
+      else if (currentTab !== 'home') {
         setCurrentTab('home');
       }
     };
@@ -148,9 +156,10 @@ export default function App() {
 
   useEffect(() => {
     async function fetchData() {
-      const [eventRes, scoreRes] = await Promise.all([
+      const [eventRes, scoreRes, cardRes] = await Promise.all([
         supabase.rpc('get_public_event_context'),
-        supabase.rpc('get_scoreboard')
+        supabase.rpc('get_scoreboard'),
+        supabase.from('card_news').select('*').order('order_index', { ascending: true })
       ]);
       
       if (eventRes.error) {
@@ -163,6 +172,12 @@ export default function App() {
         console.error('Error fetching scoreboard:', scoreRes.error)
       } else {
         setScoreboardData(scoreRes.data)
+      }
+
+      if (cardRes.error) {
+        console.error('Error fetching card news:', cardRes.error)
+      } else {
+        setCardNewsData(cardRes.data)
       }
       
       setLoading(false)
@@ -189,7 +204,7 @@ export default function App() {
       case 'events': return <Events data={eventData} />
       case 'booths': return <Booths data={eventData} />
       case 'rankings': return <Rankings data={eventData} scoreboard={scoreboardData} />
-      case 'info': return <Info />
+      case 'info': return <Info cardNews={cardNewsData} />
       default: return <Home data={eventData} />
     }
   }
