@@ -127,34 +127,44 @@ export default function Info({ cardNews }) {
           </h2>
         </div>
         
-        <div className="flex flex-col gap-4 px-5 pb-8">
+        <div className="flex flex-col gap-4 px-5 pb-12">
           {cardNews && cardNews.length > 0 ? (
-            cardNews.map((card) => (
+            cardNews.map((card, idx) => (
               <motion.div 
                 key={card.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: idx * 0.1 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={() => setSelectedCard(card)}
-                className={`w-full rounded-2xl bg-gradient-to-r ${card.color_preset || 'from-pink-500 to-rose-500'} p-5 flex items-center shadow-md relative overflow-hidden cursor-pointer`}
+                className={`w-full rounded-[28px] bg-gradient-to-br ${card.color_preset || 'from-pink-500 to-rose-600'} p-6 flex items-center shadow-[0_15px_30px_-10px_rgba(0,0,0,0.1)] relative overflow-hidden cursor-pointer group`}
               >
-                <div className="flex-1 z-10 pr-2">
-                  <div className="bg-white/20 backdrop-blur-sm w-fit px-2.5 py-0.5 rounded-full mb-2.5">
-                    <span className="text-white text-[10px] font-bold tracking-wide">{card.category}</span>
+                {/* Decorative Background Shapes */}
+                <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-3xl group-hover:scale-110 transition-transform duration-500" />
+                <div className="absolute -bottom-10 -left-10 w-32 h-32 bg-black/5 rounded-full blur-2xl" />
+
+                <div className="flex-1 z-10 pr-4">
+                  <div className="bg-black/10 backdrop-blur-md w-fit px-3 py-1 rounded-full mb-3 border border-white/10">
+                    <span className="text-white text-[11px] font-black tracking-wider uppercase">{card.category || 'NOTICE'}</span>
                   </div>
-                  <h3 className="font-cafe24 text-[17px] font-bold text-white leading-snug mb-1.5 break-keep">
+                  <h3 className="font-cafe24 text-[22px] font-black text-white leading-tight mb-2 break-keep drop-shadow-sm">
                     {card.title}
                   </h3>
                   {card.content && (
-                    <p className="font-lexend text-white/90 text-[12px] leading-relaxed break-keep">
+                    <p className="font-lexend text-white/80 text-[13px] leading-relaxed break-keep font-medium">
                       {card.content}
                     </p>
                   )}
                 </div>
 
-                <div className="w-14 h-14 shrink-0 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center z-10">
-                  <span className="material-symbols-outlined text-[28px] text-white" style={{fontVariationSettings: "'FILL' 1"}}>
+                <div className="w-16 h-16 shrink-0 rounded-2xl bg-white/15 backdrop-blur-xl border border-white/20 flex items-center justify-center z-10 shadow-inner group-hover:rotate-12 transition-transform duration-300">
+                  <span className="material-symbols-outlined text-[32px] text-white" style={{fontVariationSettings: "'FILL' 1"}}>
                     {card.icon_name || 'campaign'}
                   </span>
                 </div>
+
+                {/* Subtle Progress Indicator or Interaction Hint */}
+                <div className="absolute bottom-0 left-0 h-1 bg-white/30 w-0 group-hover:w-full transition-all duration-700" />
               </motion.div>
             ))
           ) : (

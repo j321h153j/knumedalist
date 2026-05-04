@@ -86,20 +86,21 @@ export default function Rankings({ data, scoreboard }) {
         ) : (
           <div className="flex flex-col gap-3">
             {/* Podium (Top 3) */}
-            <div className="bg-white rounded-[24px] shadow-[0px_10px_30px_-5px_rgba(0,0,0,0.05)] border border-gray-100 overflow-hidden mb-2">
-              <div className="bg-gradient-to-br from-pink-50 to-white p-5 border-b border-gray-100 flex items-end justify-center gap-4 pt-8">
+            <div className="bg-white rounded-[32px] shadow-[0px_20px_50px_rgba(0,0,0,0.05)] border border-gray-100 overflow-hidden mb-6">
+              <div className="bg-gradient-to-br from-pink-50/50 to-white p-6 pt-20 pb-10 flex items-end justify-center gap-2 sm:gap-6">
+                
                 {/* 2nd Place */}
                 {top2 && (
                   <motion.div 
                     initial={{ y: 30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.15 }}
-                    className="flex flex-col items-center gap-2 relative top-4 cursor-pointer" onClick={() => toggleExpand(top2.team_id)}
+                    className="flex flex-col items-center gap-3 cursor-pointer w-24 sm:w-32" onClick={() => toggleExpand(top2.team_id)}
                   >
-                    <div className="w-16 h-16 rounded-full bg-gray-100 border-4 border-white shadow-sm flex items-center justify-center">
-                      <span className="font-lexend font-bold text-xl text-gray-500">2</span>
+                    <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-white border-4 border-gray-100 shadow-sm flex items-center justify-center relative">
+                      <span className="font-lexend font-black text-2xl text-gray-400">2</span>
                     </div>
-                    <div className="text-center">
-                      <p className="font-cafe24 text-base text-gray-900">{getTeamName(top2.team_id)}</p>
-                      <p className="font-lexend text-sm text-pink-600 font-bold">{top2.total_points} pts</p>
+                    <div className="text-center flex flex-col items-center">
+                      <p className="font-cafe24 text-sm sm:text-base text-gray-900 truncate w-full">{getTeamName(top2.team_id)}</p>
+                      <p className="font-lexend text-xs sm:text-sm text-pink-500 font-bold tracking-tight">{top2.total_points} pts</p>
                     </div>
                   </motion.div>
                 )}
@@ -108,15 +109,22 @@ export default function Rankings({ data, scoreboard }) {
                 {top1 && (
                   <motion.div 
                     initial={{ y: 30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.05 }}
-                    className="flex flex-col items-center gap-2 relative -top-4 z-20 cursor-pointer" onClick={() => toggleExpand(top1.team_id)}
+                    className="flex flex-col items-center gap-3 relative -top-6 z-20 cursor-pointer w-28 sm:w-40" onClick={() => toggleExpand(top1.team_id)}
                   >
-                    <div className="material-symbols-outlined text-yellow-400 absolute -top-8 text-3xl drop-shadow-md" style={{fontVariationSettings: "'FILL' 1"}}>workspace_premium</div>
-                    <div className="w-20 h-20 rounded-full bg-gradient-to-br from-pink-500 to-orange-400 border-4 border-white shadow-md flex items-center justify-center">
-                      <span className="font-lexend font-bold text-2xl text-white">1</span>
+                    <motion.div 
+                      animate={{ y: [0, -5, 0] }}
+                      transition={{ duration: 2, repeat: Infinity }}
+                      className="material-symbols-outlined text-yellow-400 absolute -top-10 text-4xl drop-shadow-[0_0_10px_rgba(250,204,21,0.4)]" 
+                      style={{fontVariationSettings: "'FILL' 1"}}
+                    >
+                      workspace_premium
+                    </motion.div>
+                    <div className="w-20 h-20 sm:w-28 sm:h-28 rounded-full bg-gradient-to-br from-pink-500 to-orange-400 border-4 border-white shadow-[0_10px_25px_rgba(236,72,153,0.3)] flex items-center justify-center">
+                      <span className="font-lexend font-black text-4xl text-white drop-shadow-sm">1</span>
                     </div>
-                    <div className="text-center">
-                      <p className="font-cafe24 text-lg text-gray-900">{getTeamName(top1.team_id)}</p>
-                      <p className="font-lexend text-xl text-pink-600 font-bold">{top1.total_points} pts</p>
+                    <div className="text-center flex flex-col items-center">
+                      <p className="font-cafe24 text-base sm:text-xl text-gray-900 font-black">{getTeamName(top1.team_id)}</p>
+                      <p className="font-lexend text-sm sm:text-lg text-pink-600 font-black tracking-tight">{top1.total_points} pts</p>
                     </div>
                   </motion.div>
                 )}
@@ -125,14 +133,14 @@ export default function Rankings({ data, scoreboard }) {
                 {top3 && (
                   <motion.div 
                     initial={{ y: 30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.25 }}
-                    className="flex flex-col items-center gap-2 relative top-6 cursor-pointer" onClick={() => toggleExpand(top3.team_id)}
+                    className="flex flex-col items-center gap-3 cursor-pointer w-24 sm:w-32" onClick={() => toggleExpand(top3.team_id)}
                   >
-                    <div className="w-14 h-14 rounded-full bg-gray-100 border-4 border-white shadow-sm flex items-center justify-center">
-                      <span className="font-lexend font-bold text-xl text-gray-500">3</span>
+                    <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-white border-4 border-orange-50 shadow-sm flex items-center justify-center">
+                      <span className="font-lexend font-black text-xl text-orange-300">3</span>
                     </div>
-                    <div className="text-center">
-                      <p className="font-cafe24 text-base text-gray-900">{getTeamName(top3.team_id)}</p>
-                      <p className="font-lexend text-sm text-pink-600 font-bold">{top3.total_points} pts</p>
+                    <div className="text-center flex flex-col items-center">
+                      <p className="font-cafe24 text-sm sm:text-base text-gray-900 truncate w-full">{getTeamName(top3.team_id)}</p>
+                      <p className="font-lexend text-xs sm:text-sm text-pink-500 font-bold tracking-tight">{top3.total_points} pts</p>
                     </div>
                   </motion.div>
                 )}
