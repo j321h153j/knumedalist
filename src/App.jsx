@@ -80,37 +80,68 @@ export default function App() {
       setTabKey(k => k + 1); // 같은 탭 → 컴포넌트 초기화 (부스 상세 → 부스 목록 복귀 등)
       window.scrollTo({ top: 0, behavior: 'smooth' }); // 같은 탭 누르면 맨 위로 스크롤
     } else {
+      // 홈이 아닌 탭으로 이동 시 히스토리에 기록 (뒤로가기 제어용)
+      if (tab !== 'home') {
+        window.history.pushState({ tab }, '');
+      }
       setCurrentTab(tab);
       window.scrollTo({ top: 0 }); // 다른 탭으로 이동 시 맨 위로
     }
   };
 
-  const tabs = ['home', 'events', 'booths', 'rankings', 'info']
-  const [touchStart, setTouchStart] = useState(null)
-  const [touchEnd, setTouchEnd] = useState(null)
+  useEffect(() => {
+    const handlePopState = (e) => {
+      // 뒤로가기 발생 시, 현재 탭이 홈이 아니면 무조건 홈으로 복귀
+      if (currentTab !== 'home') {
+        setCurrentTab('home');
+      }
+    };
 
-  const minSwipeDistance = 50
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [currentTab]);
+
+  const tabs = ['home', 'events', 'booths', 'rankings', 'info']
+  const [touchStart, setTouchStart] = useState({ x: null, y: null })
+  const [touchEnd, setTouchEnd] = useState({ x: null, y: null })
+
+  const minSwipeDistance = 70 // 스와이프 민감도 약간 하향
 
   const onTouchStart = (e) => {
-    setTouchEnd(null)
-    setTouchStart(e.targetTouches[0].clientX)
+    setTouchEnd({ x: null, y: null })
+    setTouchStart({ 
+      x: e.targetTouches[0].clientX, 
+      y: e.targetTouches[0].clientY 
+    })
   }
 
-  const onTouchMove = (e) => setTouchEnd(e.targetTouches[0].clientX)
+  const onTouchMove = (e) => {
+    setTouchEnd({ 
+      x: e.targetTouches[0].clientX, 
+      y: e.targetTouches[0].clientY 
+    })
+  }
 
   const onTouchEndHandler = () => {
-    if (!touchStart || !touchEnd) return
-    const distance = touchStart - touchEnd
-    const isLeftSwipe = distance > minSwipeDistance
-    const isRightSwipe = distance < -minSwipeDistance
+    if (!touchStart.x || !touchEnd.x || !touchStart.y || !touchEnd.y) return
     
-    if (isLeftSwipe || isRightSwipe) {
+    const distanceX = touchStart.x - touchEnd.x
+    const distanceY = touchStart.y - touchEnd.y
+    
+    const isLeftSwipe = distanceX > minSwipeDistance
+    const isRightSwipe = distanceX < -minSwipeDistance
+    
+    // 수평 이동 거리가 수직 이동 거리보다 확실히 클 때만 (대략 2배) 스와이프로 인정
+    // 이렇게 하면 수직 스크롤 중에 실수로 탭이 넘어가는 것을 방지할 수 있습니다.
+    const isHorizontal = Math.abs(distanceX) > Math.abs(distanceY) * 2
+
+    if (isHorizontal && (isLeftSwipe || isRightSwipe)) {
       const currentIndex = tabs.indexOf(currentTab)
       if (isLeftSwipe && currentIndex < tabs.length - 1) {
-        setCurrentTab(tabs[currentIndex + 1])
+        handleTabChange(tabs[currentIndex + 1])
       }
       if (isRightSwipe && currentIndex > 0) {
-        setCurrentTab(tabs[currentIndex - 1])
+        handleTabChange(tabs[currentIndex - 1])
       }
     }
   }
