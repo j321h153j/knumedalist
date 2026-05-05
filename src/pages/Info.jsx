@@ -307,6 +307,13 @@ export default function Info({ cardNews }) {
 
             {/* 이미지 컨텐츠 */}
             <div className="flex-1 relative flex items-center justify-center bg-zinc-900 overflow-hidden">
+              {/* 이미지 프리로딩: 모든 이미지를 미리 렌더링하여 캐싱 (화면에는 안 보임) */}
+              <div className="hidden pointer-events-none" aria-hidden="true">
+                {selectedCard.image_urls?.map((url, idx) => (
+                  <img key={idx} src={url} alt="preload" />
+                ))}
+              </div>
+
               <AnimatePresence mode="wait">
                 <motion.img
                   key={currentImgIdx}
