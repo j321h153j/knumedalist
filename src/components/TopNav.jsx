@@ -2,14 +2,20 @@ export default function TopNav({ currentTab, setCurrentTab }) {
   const isHome = currentTab === 'home';
 
   const navBg = isHome 
-    ? 'bg-[#0a0a0a]/90 border-gray-900 shadow-[0_10px_40px_rgba(236,72,153,0.15)]' 
-    : 'bg-white/90 border-gray-100 shadow-sm';
+    ? 'border-gray-900 shadow-[0_10px_40px_rgba(236,72,153,0.15)]' 
+    : 'border-gray-100 shadow-sm';
+  const navStyle = {
+    backgroundColor: isHome ? 'rgba(10, 10, 10, 0.92)' : 'rgba(255, 255, 255, 0.96)',
+  };
 
   const profileBg = isHome ? 'bg-gray-800' : 'bg-gray-200';
   const profileIcon = isHome ? 'text-gray-400' : 'text-gray-500';
 
   return (
-    <header className={`hidden md:flex sticky top-0 w-full z-50 px-5 h-16 items-center justify-between backdrop-blur-md border-b font-lexend font-bold tracking-tight transition-colors duration-300 ${navBg}`}>
+    <header
+      className={`hidden md:flex sticky top-0 w-full z-50 px-5 h-16 items-center justify-between backdrop-blur-md border-b font-lexend font-bold tracking-tight transition-colors duration-300 ${navBg}`}
+      style={navStyle}
+    >
       <div className="flex items-center gap-2">
         <span className="material-symbols-outlined text-pink-500 transition-colors duration-300" style={{ fontVariationSettings: "'FILL' 1" }}>sports_score</span>
         <span className="text-2xl font-ginsaeng tracking-widest mt-1">

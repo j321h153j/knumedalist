@@ -13,14 +13,20 @@ export default function BottomNav({ currentTab, setCurrentTab }) {
   const isHome = currentTab === 'home';
 
   const navBg = isHome 
-    ? 'bg-[#0a0a0a]/90 border-gray-900 shadow-[0_-10px_40px_rgba(236,72,153,0.15)]' 
-    : 'bg-white/95 border-gray-100 shadow-[0px_-4px_20px_rgba(0,0,0,0.05)]';
+    ? 'border-gray-900 shadow-[0_-10px_40px_rgba(236,72,153,0.15)]' 
+    : 'border-gray-100 shadow-[0px_-4px_20px_rgba(0,0,0,0.05)]';
+  const navStyle = {
+    backgroundColor: isHome ? 'rgba(10, 10, 10, 0.92)' : 'rgba(255, 255, 255, 0.96)',
+  };
 
   const activeIndicatorColor = isHome ? '#f472b6' : '#ec4899'; // Lighter pink in dark mode
   const inactiveIndicatorColor = isHome ? '#374151' : '#d1d5db';
 
   return (
-    <nav className={`md:hidden fixed bottom-0 left-0 w-full z-50 flex flex-col items-center px-4 pb-safe border-t rounded-t-2xl backdrop-blur-xl transition-colors duration-300 ${navBg}`}>
+    <nav
+      className={`md:hidden fixed bottom-0 left-0 w-full z-50 flex flex-col items-center px-4 pb-safe border-t rounded-t-2xl backdrop-blur-xl transition-colors duration-300 ${navBg}`}
+      style={navStyle}
+    >
       {/* Tab Indicator Dots */}
       <div className="flex items-center gap-2 pt-2 pb-1">
         {tabs.map((tab, idx) => (

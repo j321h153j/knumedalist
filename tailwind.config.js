@@ -4,6 +4,17 @@ export default {
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
+  safelist: [
+    "from-pink-500",
+    "to-rose-500",
+    "from-orange-400",
+    "to-amber-500",
+    "from-teal-400",
+    "to-emerald-500",
+    {
+      pattern: /(from|to)-(pink|rose|orange|amber|blue|cyan|purple|indigo|green|emerald|red|yellow|gray|slate|zinc|neutral|stone|sky|lime|teal)-(50|100|200|300|400|500|600|700|800|900)/,
+    },
+  ],
   theme: {
     extend: {
       colors: {

@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 
+const LOGO_SRC = '/logo.png';
+
 export default function PageHeader({ title, subtitle, date }) {
   const [scrollY, setScrollY] = useState(0);
 
@@ -41,7 +43,12 @@ export default function PageHeader({ title, subtitle, date }) {
           alt="Medalist 2026 Sports Festival Logo" 
           className="gate-logo w-full h-full object-contain drop-shadow-lg md:w-auto" 
           style={{ height: undefined }}
-          src="https://lh3.googleusercontent.com/aida/ADBb0uhmwCYQPn7Vku15jRDlmvR8snwBwpcjqnBhK9iuY8m772rYO4xAd_nLYFHO2-gs-59OWb7YzfX10--4VwNMzlIBOEy5-m-TUEA4kcnuXfEGq-R7OmiEEccql12DPj-tGwzeMLcK4ULvJ4hJf3jXoLdL4OakAT4aNYfVUCpKKIM4NHKjBwytDg4o4bdBnvwYRRUP-VWbigBf4k0mi6XKgy0h8y5RICJBAV2oqf12H9kEOfwDXs3GNj_Ww71L_xNhyfmhajrw9OReJg"
+          src={LOGO_SRC}
+          decoding="async"
+          loading="eager"
+          onError={(event) => {
+            event.currentTarget.style.display = 'none';
+          }}
         />
         {/* 데스크톱 전용: vh 기반 높이 오버라이드 */}
         <style>{`

@@ -10,6 +10,8 @@ import BottomNav from './components/BottomNav'
 import TopNav from './components/TopNav'
 import SwipeHint from './components/SwipeHint'
 
+const LOGO_SRC = '/logo.png';
+
 const MobileStickyHeader = ({ currentTab }) => {
   const [scrollY, setScrollY] = useState(0);
 
@@ -47,9 +49,15 @@ const MobileStickyHeader = ({ currentTab }) => {
         }}
       >
         <img 
-          src="https://lh3.googleusercontent.com/aida/ADBb0uhmwCYQPn7Vku15jRDlmvR8snwBwpcjqnBhK9iuY8m772rYO4xAd_nLYFHO2-gs-59OWb7YzfX10--4VwNMzlIBOEy5-m-TUEA4kcnuXfEGq-R7OmiEEccql12DPj-tGwzeMLcK4ULvJ4hJf3jXoLdL4OakAT4aNYfVUCpKKIM4NHKjBwytDg4o4bdBnvwYRRUP-VWbigBf4k0mi6XKgy0h8y5RICJBAV2oqf12H9kEOfwDXs3GNj_Ww71L_xNhyfmhajrw9OReJg" 
-          alt="로고" 
-          className="w-auto h-7 object-contain"
+          src={LOGO_SRC} 
+          alt="Medalist 2026" 
+          className="h-7 w-auto object-contain shrink-0"
+          decoding="async"
+          loading="eager"
+          style={{ minWidth: '20px', aspectRatio: 'auto' }}
+          onError={(event) => {
+            event.currentTarget.style.display = 'none';
+          }}
         />
         <span className="font-ginsaeng text-2xl font-black text-gray-900 mt-1.5 tracking-tight">{info.title}</span>
         

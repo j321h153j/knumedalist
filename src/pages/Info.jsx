@@ -1,6 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
+const DEFAULT_CARD_GRADIENT = 'from-pink-500 to-rose-600';
+const CARD_COLOR_PRESETS = {
+  'from-pink-500 to-rose-500': 'from-pink-500 to-rose-500',
+  'from-orange-400 to-amber-500': 'from-orange-400 to-amber-500',
+  'from-teal-400 to-emerald-500': 'from-teal-400 to-emerald-500',
+};
+
+function getCardColorPreset(colorPreset) {
+  const value = String(colorPreset || '').trim();
+  if (!value) return DEFAULT_CARD_GRADIENT;
+  return CARD_COLOR_PRESETS[value] || value;
+}
+
 export default function Info({ cardNews }) {
   const [selectedMapPin, setSelectedMapPin] = useState(null);
   const [isMapOpen, setIsMapOpen] = useState(false);
@@ -129,50 +142,93 @@ export default function Info({ cardNews }) {
         
         <div className="flex flex-col gap-4 px-5 pb-12">
           {cardNews && cardNews.length > 0 ? (
-            cardNews.map((card, idx) => (
-              <motion.div 
-                key={card.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: idx * 0.1 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => setSelectedCard(card)}
-                className={`w-full rounded-[28px] bg-gradient-to-br ${card.color_preset || 'from-pink-500 to-rose-600'} p-6 flex items-center shadow-[0_15px_30px_-10px_rgba(0,0,0,0.1)] relative overflow-hidden cursor-pointer group`}
-              >
-                {/* Decorative Background Shapes */}
-                <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-3xl group-hover:scale-110 transition-transform duration-500" />
-                <div className="absolute -bottom-10 -left-10 w-32 h-32 bg-black/5 rounded-full blur-2xl" />
+            cardNews.map((card, idx) => {
+              const colorPreset = getCardColorPreset(card.color_preset);
+              const isLight = colorPreset && (
+                colorPreset.includes('white') ||
+                colorPreset.includes('gray-50') ||
+                colorPreset.includes('gray-100') ||
+                colorPreset.includes('slate-50') ||
+                colorPreset.includes('zinc-50')
+              );
+              
+              const textColor = isLight ? 'text-gray-900' : 'text-white';
+              const textMutedColor = isLight ? 'text-gray-500' : 'text-white/80';
+              const badgeBg = isLight ? 'bg-gray-100' : 'bg-black/10';
+              const badgeText = isLight ? 'text-gray-600' : 'text-white';
 
-                <div className="flex-1 z-10 pr-4">
-                  <div className="bg-black/10 backdrop-blur-md w-fit px-3 py-1 rounded-full mb-3 border border-white/10">
-                    <span className="text-white text-[11px] font-black tracking-wider uppercase">{card.category || 'NOTICE'}</span>
+              return (
+                <motion.div 
+                  key={card.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: idx * 0.1 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => setSelectedCard(card)}
+                  className={`w-full rounded-[28px] border border-gray-100/50 bg-white bg-gradient-to-br ${colorPreset} p-6 flex items-center shadow-[0_15px_30px_-10px_rgba(0,0,0,0.1)] relative overflow-hidden cursor-pointer group`}
+                >
+                  {/* Decorative Background Shapes */}
+                  <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-3xl group-hover:scale-110 transition-transform duration-500" />
+                  <div className="absolute -bottom-10 -left-10 w-32 h-32 bg-black/5 rounded-full blur-2xl" />
+
+                  <div className="flex-1 z-10 pr-4">
+                    <div className={`${badgeBg} backdrop-blur-md w-fit px-3 py-1 rounded-full mb-3 border border-white/10`}>
+                      <span className={`${badgeText} text-[11px] font-black tracking-wider uppercase`}>{card.category || 'NOTICE'}</span>
+                    </div>
+                    <h3 className={`font-cafe24 text-[22px] font-black ${textColor} leading-tight mb-2 break-keep drop-shadow-sm`}>
+                      {card.title}
+                    </h3>
+                    {card.content && (
+                      <p className={`font-lexend ${textMutedColor} text-[13px] leading-relaxed break-keep font-medium`}>
+                        {card.content}
+                      </p>
+                    )}
                   </div>
-                  <h3 className="font-cafe24 text-[22px] font-black text-white leading-tight mb-2 break-keep drop-shadow-sm">
-                    {card.title}
-                  </h3>
-                  {card.content && (
-                    <p className="font-lexend text-white/80 text-[13px] leading-relaxed break-keep font-medium">
-                      {card.content}
-                    </p>
-                  )}
-                </div>
 
-                <div className="w-16 h-16 shrink-0 rounded-2xl bg-white/15 backdrop-blur-xl border border-white/20 flex items-center justify-center z-10 shadow-inner group-hover:rotate-12 transition-transform duration-300">
-                  <span className="material-symbols-outlined text-[32px] text-white" style={{fontVariationSettings: "'FILL' 1"}}>
-                    {card.icon_name || 'campaign'}
-                  </span>
-                </div>
+                  <div className={`w-16 h-16 shrink-0 rounded-2xl ${isLight ? 'bg-gray-100' : 'bg-white/15'} backdrop-blur-xl border border-white/20 flex items-center justify-center z-10 shadow-inner group-hover:rotate-12 transition-transform duration-300`}>
+                    <span className={`material-symbols-outlined text-[32px] ${isLight ? 'text-gray-400' : 'text-white'}`} style={{fontVariationSettings: "'FILL' 1"}}>
+                      {card.icon_name || 'campaign'}
+                    </span>
+                  </div>
 
-                {/* Subtle Progress Indicator or Interaction Hint */}
-                <div className="absolute bottom-0 left-0 h-1 bg-white/30 w-0 group-hover:w-full transition-all duration-700" />
-              </motion.div>
-            ))
+                  {/* Subtle Progress Indicator or Interaction Hint */}
+                  <div className={`absolute bottom-0 left-0 h-1 ${isLight ? 'bg-gray-200' : 'bg-white/30'} w-0 group-hover:w-full transition-all duration-700`} />
+                </motion.div>
+              );
+            })
           ) : (
             <div className="text-center py-10 text-gray-400 font-lexend text-sm">
               준비된 카드뉴스가 없습니다.
             </div>
           )}
         </div>
+      </section>
+
+      {/* 개발자 크레딧 섹션 */}
+      <section className="px-5 pt-8 pb-16">
+        <div className="relative overflow-hidden rounded-[32px] bg-white border border-gray-100 p-8 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.05)]">
+          {/* Decorative Elements */}
+          <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-pink-50 to-orange-50 opacity-50 rounded-bl-full -z-0" />
+          
+          <div className="relative z-10 flex flex-col items-center text-center">
+            <div className="w-12 h-12 bg-pink-50 rounded-2xl flex items-center justify-center mb-4">
+              <span className="material-symbols-outlined text-pink-500" style={{fontVariationSettings: "'FILL' 1"}}>code</span>
+            </div>
+            
+            <p className="text-[10px] font-black text-pink-400 uppercase tracking-[0.2em] mb-2">Developed with Passion</p>
+            <h3 className="font-cafe24 text-xl font-black text-gray-900 mb-1">22학번 조현진</h3>
+            <p className="font-lexend text-[11px] text-gray-400 mb-6">Development Period: 2026.05.01 ~ 05.06</p>
+            
+            <div className="w-full h-px bg-gradient-to-r from-transparent via-gray-100 to-transparent mb-6" />
+            
+            <p className="font-cafe24 text-[14px] text-gray-600 leading-relaxed italic">
+              "첫 애플리케이션 개발! 뿌듯합니다.<br/>모두 재밌는 운동회 보내시길 바랍니다! ✨"
+            </p>
+          </div>
+        </div>
+        <p className="mt-8 text-center text-[10px] text-gray-300 font-lexend tracking-widest uppercase">
+          © 2026 KNUME Athletic Festival. All rights reserved.
+        </p>
       </section>
 
       {/* 지도 크게 보기 모달 */}
