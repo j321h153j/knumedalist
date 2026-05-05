@@ -1,4 +1,4 @@
-﻿const { demoTime, games: fallbackGames, booths: fallbackBooths } = window.EVENT_DATA;
+const { demoTime, games: fallbackGames, booths: fallbackBooths } = window.EVENT_DATA;
 const demoMinutes = toMinutes(demoTime);
 
 const SUPABASE_URL = "https://texlipqnzkoylzeowvyg.supabase.co";
@@ -92,7 +92,7 @@ function timestampToClock(value) {
   return matched ? `${matched[1]}:${matched[2]}` : "";
 }
 
-function getStatus(start, end, referenceMinutes = demoMinutes) {
+function getStatus(start, end, referenceMinutes = getCurrentKoreaMinutes()) {
   const startMinutes = toMinutes(start);
   const endMinutes = toMinutes(end);
   if (referenceMinutes >= startMinutes && referenceMinutes < endMinutes) return "\uC9C4\uD589 \uC911";
@@ -159,8 +159,9 @@ function currentGames() {
 }
 
 function upcomingGames(limit = 1) {
+  const currentMinutes = getCurrentKoreaMinutes();
   return state.games
-    .filter((game) => game.status !== "completed" && game.status !== "in_progress" && toMinutes(game.start) > demoMinutes)
+    .filter((game) => game.status !== "completed" && game.status !== "in_progress" && toMinutes(game.start) > currentMinutes)
     .sort((left, right) => toMinutes(left.start) - toMinutes(right.start))
     .slice(0, limit);
 }
