@@ -47,7 +47,27 @@ export default function BoothDetail({ booth, boothIcon, sessionInfo, formatTime,
   // 랭킹 데이터가 있는지 확인 (배열이면 length, 객체면 키 존재 여부)
   const hasRankings = liveRankings && (Array.isArray(liveRankings) ? liveRankings.length > 0 : Object.keys(liveRankings).length > 0);
   const isGenderSeparated = liveRankings && !Array.isArray(liveRankings);
-  const displayRankings = isGenderSeparated ? (liveRankings[selectedGender] || []) : liveRankings;
+  const isShoeBooth = String(booth?.name || '').includes('신발');
+
+  let displayRankings = [];
+  let showGenderTabs = isGenderSeparated;
+
+  if (isGenderSeparated) {
+    if (isShoeBooth) {
+      // 신발 던지기는 남/여 데이터를 합쳐서 통합 랭킹으로 표시
+      const merged = [...(liveRankings['남'] || []), ...(liveRankings['여'] || [])];
+      // 점수 높은 순으로 정렬 후 순위 재부여
+      displayRankings = merged
+        .sort((a, b) => (b.score_value || 0) - (a.score_value || 0))
+        .map((item, idx) => ({ ...item, rank_order: idx + 1 }))
+        .slice(0, 5); // 상위 5위까지만 표시
+      showGenderTabs = false;
+    } else {
+      displayRankings = liveRankings[selectedGender] || [];
+    }
+  } else {
+    displayRankings = liveRankings;
+  }
 
   let statusText = '상태 미상';
   let statusColor = 'bg-gray-100 text-gray-600';
@@ -158,7 +178,7 @@ export default function BoothDetail({ booth, boothIcon, sessionInfo, formatTime,
             </div>
 
             {/* 성별 탭 (필요한 경우에만 노출) */}
-            {isGenderSeparated && (
+            {showGenderTabs && (
               <div className="flex bg-white/50 p-1 rounded-xl mb-5 border border-pink-100/30">
                 {['남', '여'].map(gender => (
                   <button
