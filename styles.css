@@ -940,6 +940,56 @@ h4 {
   font-weight: 900;
 }
 
+/* Gender Selection Styles - Segmented Control */
+.gender-toggle-group {
+  display: flex;
+  background: var(--surface-soft);
+  padding: 4px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  margin-top: 6px;
+}
+
+.gender-option {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.gender-option input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.gender-option:has(input:checked) {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.gender-tag {
+  display: inline-flex;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--line);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+  margin-left: 5px;
+  vertical-align: middle;
+}
+
 .ranking-row {
   display: grid;
   grid-template-columns: 42px 1fr auto;

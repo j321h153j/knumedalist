@@ -5,6 +5,7 @@ import { supabase } from '../supabase';
 export default function BoothDetail({ booth, boothIcon, sessionInfo, formatTime, onBack }) {
   const [liveRankings, setLiveRankings] = useState([]);
   const [isRankingLoading, setIsRankingLoading] = useState(false);
+  const [selectedGender, setSelectedGender] = useState('남');
 
   // 상세 페이지 진입 시 스크롤 맨 위로 & 실시간 랭킹 로드
   useEffect(() => {
@@ -23,7 +24,17 @@ export default function BoothDetail({ booth, boothIcon, sessionInfo, formatTime,
       });
       
       if (error) throw error;
+      
+      // 데이터가 객체 형태(남/여 구분)인지 배열 형태인지 확인
       setLiveRankings(data || []);
+      
+      // 만약 객체 형태라면 기본 탭 설정
+      if (data && !Array.isArray(data)) {
+        const genders = Object.keys(data);
+        if (genders.length > 0 && !genders.includes(selectedGender)) {
+          setSelectedGender(genders[0]);
+        }
+      }
     } catch (err) {
       console.error('Error fetching live rankings:', err);
     } finally {
@@ -32,6 +43,11 @@ export default function BoothDetail({ booth, boothIcon, sessionInfo, formatTime,
   };
 
   if (!booth) return null;
+
+  // 랭킹 데이터가 있는지 확인 (배열이면 length, 객체면 키 존재 여부)
+  const hasRankings = liveRankings && (Array.isArray(liveRankings) ? liveRankings.length > 0 : Object.keys(liveRankings).length > 0);
+  const isGenderSeparated = liveRankings && !Array.isArray(liveRankings);
+  const displayRankings = isGenderSeparated ? (liveRankings[selectedGender] || []) : liveRankings;
 
   let statusText = '상태 미상';
   let statusColor = 'bg-gray-100 text-gray-600';
@@ -121,7 +137,7 @@ export default function BoothDetail({ booth, boothIcon, sessionInfo, formatTime,
         </motion.div>
 
         {/* 랭킹 카드 섹션 */}
-        {liveRankings && liveRankings.length > 0 && (
+        {hasRankings && (
           <motion.div 
             initial={{ y: 30, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
@@ -140,47 +156,73 @@ export default function BoothDetail({ booth, boothIcon, sessionInfo, formatTime,
                 <span className="material-symbols-outlined text-[18px]">refresh</span>
               </button>
             </div>
-            
-            <div className="flex flex-col gap-2.5">
-              {liveRankings.map((rank, idx) => {
-                const medals = ['🥇', '🥈', '🥉'];
-                const isTop3 = rank.rank_order <= 3;
-                
-                return (
-                  <div 
-                    key={rank.team_id}
-                    className={`flex items-center gap-4 px-5 py-4 rounded-2xl border transition-all ${
-                      isTop3 
-                        ? 'bg-white border-pink-100 shadow-sm' 
-                        : 'bg-white/50 border-gray-100'
+
+            {/* 성별 탭 (필요한 경우에만 노출) */}
+            {isGenderSeparated && (
+              <div className="flex bg-white/50 p-1 rounded-xl mb-5 border border-pink-100/30">
+                {['남', '여'].map(gender => (
+                  <button
+                    key={gender}
+                    onClick={() => setSelectedGender(gender)}
+                    className={`flex-1 py-2.5 rounded-lg font-cafe24 text-sm transition-all ${
+                      selectedGender === gender 
+                        ? 'bg-white text-pink-500 shadow-sm font-bold' 
+                        : 'text-gray-400 hover:text-gray-600'
                     }`}
                   >
-                    <div className="w-8 text-center flex items-center justify-center">
-                      {isTop3 ? (
-                        <span className="text-2xl">{medals[rank.rank_order - 1]}</span>
-                      ) : (
-                        <span className="font-lexend font-bold text-gray-300 text-sm">{rank.rank_order}</span>
-                      )}
+                    {gender}자 부문
+                  </button>
+                ))}
+              </div>
+            )}
+            
+            <div className="flex flex-col gap-2.5">
+              {displayRankings.length > 0 ? (
+                displayRankings.map((rank, idx) => {
+                  const medals = ['🥇', '🥈', '🥉'];
+                  const isTop3 = rank.rank_order <= 3;
+                  
+                  return (
+                    <div 
+                      key={rank.team_id || idx}
+                      className={`flex items-center gap-4 px-5 py-4 rounded-2xl border transition-all ${
+                        isTop3 
+                          ? 'bg-white border-pink-100 shadow-sm' 
+                          : 'bg-white/50 border-gray-100'
+                      }`}
+                    >
+                      <div className="w-8 text-center flex items-center justify-center">
+                        {isTop3 ? (
+                          <span className="text-2xl">{medals[rank.rank_order - 1]}</span>
+                        ) : (
+                          <span className="font-lexend font-bold text-gray-300 text-sm">{rank.rank_order}</span>
+                        )}
+                      </div>
+                      <div className="flex-1 flex flex-col">
+                        <span className={`font-cafe24 font-bold text-gray-900 ${isTop3 ? 'text-[17px]' : 'text-base'}`}>
+                          {rank.participant_name || '이름 미입력'}
+                        </span>
+                        <span className="text-[11px] text-gray-400 font-lexend">{rank.team_name}</span>
+                      </div>
+                      <div className="flex flex-col items-end">
+                        <span className={`font-lexend font-black px-3 py-1 rounded-full text-sm ${
+                          isTop3 ? 'text-pink-600 bg-pink-50' : 'text-gray-500 bg-gray-50'
+                        }`}>
+                          {rank.score_display}
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex-1">
-                      <p className={`font-cafe24 font-bold text-gray-900 ${isTop3 ? 'text-[17px]' : 'text-base'}`}>
-                        {rank.team_name}
-                      </p>
-                    </div>
-                    <div className="flex flex-col items-end">
-                      <span className={`font-lexend font-black px-3 py-1 rounded-full text-sm ${
-                        isTop3 ? 'text-pink-600 bg-pink-50' : 'text-gray-500 bg-gray-50'
-                      }`}>
-                        {rank.score_display}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              ) : (
+                <div className="text-center py-10 text-gray-400 font-lexend text-sm bg-white/30 rounded-2xl border border-dashed border-gray-200">
+                  아직 기록이 없습니다.
+                </div>
+              )}
             </div>
             
             <p className="mt-4 text-center text-[10px] text-gray-400 font-lexend">
-              팀별 최고 기록(데드리프트) 또는 합계 점수(신발던지기) 기준입니다.
+              팀별 최고 기록 또는 합계 점수 기준입니다.
             </p>
           </motion.div>
         )}

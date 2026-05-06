@@ -325,6 +325,8 @@ begin
       bool_or(ga.to_slot = 'right') as clear_right_slot
     from public.game_advancements ga
     join pg_temp.downstream_games dg on dg.game_id = ga.to_game_id
+    where ga.from_game_id = p_game_id 
+       or ga.from_game_id in (select game_id from pg_temp.downstream_games)
     group by ga.to_game_id
   )
   update public.game_results gr

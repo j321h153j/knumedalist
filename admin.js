@@ -781,6 +781,7 @@ async function loadAdminContext({ silent = false } = {}) {
         boothId: row.booth_id,
         teamId: row.team_id,
         participantName: row.participant_name ?? "",
+        participantGender: row.participant_gender ?? "",
         participantStudentId: row.participant_student_id ?? "",
         scoreValue: row.score_value ?? "",
         scoreUnit: row.score_unit ?? "",
@@ -1102,6 +1103,7 @@ function buildBoothScoresPayload(form, booth) {
   const scoreUnit = form.dataset.scoreUnit || getBoothScoreUnit(booth);
   const teamId = readTextField(form, "team_id");
   const participantName = readTextField(form, "participant_name");
+  const participantGender = form.elements.participant_gender?.value || null;
   const scoreRaw = readTextField(form, "score_value");
 
   if (!teamId) throw new Error("\uD559\uBC88 \uD300\uC744 \uC120\uD0DD\uD574 \uC8FC\uC138\uC694.");
@@ -1122,6 +1124,7 @@ function buildBoothScoresPayload(form, booth) {
           score_id: state.editingBoothScoreId,
           team_id: teamId,
           participant_name: participantName || null,
+          participant_gender: participantGender,
           participant_student_id: null,
           score_value: scoreValue,
           score_unit: scoreUnit,
@@ -2522,7 +2525,7 @@ function renderBoothScoreHistory(booth) {
           (row) => `
             <div class="booth-score-history-row">
               <div>
-                <strong>${escapeHtml(row.participantName || "\uC774\uB984 \uBBF8\uC785\uB825")}</strong>
+                <strong>${escapeHtml(row.participantName || "\uC774\uB984 \uBBF8\uC785\uB825")} ${row.participantGender ? `<small class="gender-tag">${escapeHtml(row.participantGender)}</small>` : ""}</strong>
                 <p class="description">${escapeHtml(getTeamName(row.teamId))}</p>
               </div>
               <div class="history-actions">
@@ -2542,6 +2545,8 @@ function renderBoothScoreRows(booth) {
   const scoreLabel = unit === "kg" ? "\uAE30\uB85D(kg)" : "\uC810\uC218";
   const editingScore = getBoothScoreById(state.editingBoothScoreId);
   const isEditingCurrentBooth = editingScore?.boothId === booth.id;
+  const currentGender = isEditingCurrentBooth ? editingScore.participantGender : "남";
+  const showGender = String(booth.name).includes("\uC6E8\uC774\uD2B8") || String(booth.name).includes("\uB370\uB4DC");
 
   return `
     <div class="booth-score-row">
@@ -2549,6 +2554,25 @@ function renderBoothScoreRows(booth) {
         <label>\uC774\uB984</label>
         <input name="participant_name" type="text" placeholder="\uC120\uD0DD" value="${escapeHtml(isEditingCurrentBooth ? editingScore.participantName : "")}" />
       </div>
+      ${
+        showGender
+          ? `
+      <div class="field">
+        <label>\uC131\uBCC4</label>
+        <div class="gender-toggle-group">
+          <label class="gender-option">
+            <input type="radio" name="participant_gender" value="\uB0A8" ${currentGender === "\uB0A8" ? "checked" : ""} />
+            <span>\uB0A8</span>
+          </label>
+          <label class="gender-option">
+            <input type="radio" name="participant_gender" value="\uC5EC" ${currentGender === "\uC5EC" ? "checked" : ""} />
+            <span>\uC5EC</span>
+          </label>
+        </div>
+      </div>
+      `
+          : ""
+      }
       <div class="field">
         <label>\uD559\uBC88 \uD300</label>
         <select name="team_id">
