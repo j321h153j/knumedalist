@@ -22,11 +22,25 @@ export default function Events({ data }) {
   const panelRef = useRef(null);
   const [selectedGame, setSelectedGame] = useState(null);
 
-  const isNonMatchEvent = (title, sport) => {
+  const isNonMatchEvent = (game) => {
+    if (!game) return false;
+    // 1. kind가 support인 경우 무조건 점수 표시 제외
+    if (game.kind === 'support') return true;
+    
+    const title = game.title || '';
+    const sport = game.sport || '';
+    
+    // 2. 종목명이 없으면 기본적으로 행사로 간주
     if (!sport || sport.trim() === '') return true;
-    const t = (title || '').toLowerCase();
-    if (t.includes('집합') || t.includes('개회사') || t.includes('체조') || t.includes('점심') || t.includes('식사') || t.includes('폐회') || t.includes('시상') || t.includes('휴식')) return true;
-    return false;
+    
+    // 3. 특정 키워드가 포함된 경우 제외
+    const t = title.toLowerCase();
+    const keywords = [
+      '집합', '개회사', '체조', '점심', '식사', 
+      '폐회', '시상', '휴식', '몸풀기', '이동시간', '출석체크'
+    ];
+    
+    return keywords.some(k => t.includes(k.toLowerCase()));
   };
 
   const getTeamName = (id) => teams.find(t => t.id === id)?.name || '팀 미정';
@@ -34,7 +48,7 @@ export default function Events({ data }) {
   const isRelay = (sport) => (sport || '').includes('계주');
 
   const getMatchup = (game) => {
-    if (isNonMatchEvent(game.title, game.sport)) return null;
+    if (isNonMatchEvent(game)) return null;
     // 계주는 대진이 아닌 순위 기반이므로, 결과가 있으면 1등 팀을 보여줌
     if (isRelay(game.sport)) {
       const relayRankings = gameRankings
@@ -52,7 +66,7 @@ export default function Events({ data }) {
 
   const getLocation = (game) => {
     if (game.location) return game.location;
-    if (isNonMatchEvent(game.title, game.sport)) return null; // 행사나 점심시간은 장소 미정 숨김
+    if (isNonMatchEvent(game)) return null; // 행사나 점심시간은 장소 미정 숨김
     return '장소 미정';
   };
 
@@ -157,7 +171,8 @@ export default function Events({ data }) {
           <p className="text-center text-gray-400 font-cafe24">예정된 경기가 없습니다.</p>
         ) : (
           sortedGames.map((game, idx) => {
-            const scores = getScore(game.id);
+            const isNonMatch = isNonMatchEvent(game);
+            const scores = isNonMatch ? { left: null, right: null } : getScore(game.id);
             const timeStr = formatTime(game.scheduled_start_time) ? `${formatTime(game.scheduled_start_time)} - ${formatTime(game.scheduled_end_time)}` : '시간 미정';
             const isTarget = idx === firstInProgressIdx;
             
@@ -180,8 +195,9 @@ export default function Events({ data }) {
                   status={game.status}
                   scoreLeft={scores.left}
                   scoreRight={scores.right}
+                  hideScore={isNonMatch}
                   relayRankings={
-                    isRelay(game.sport) && game.status === 'completed'
+                    !isNonMatch && isRelay(game.sport) && game.status === 'completed'
                       ? gameRankings.filter(r => r.game_id === game.id).sort((a, b) => a.rank_order - b.rank_order)
                       : null
                   }

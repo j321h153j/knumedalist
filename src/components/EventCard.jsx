@@ -1,9 +1,9 @@
 import React from 'react';
 
-export default function EventCard({ icon, sportType, time, title, matchup, location, scoreLeft, scoreRight, status, relayRankings, getTeamName, onClick }) {
-  // 진행 완료(completed)일 때만 점수 표시
-  const showScore = status === 'completed';
-  const isInProgress = status === 'in_progress';
+export default function EventCard({ icon, sportType, time, title, matchup, location, scoreLeft, scoreRight, status, relayRankings, getTeamName, onClick, hideScore }) {
+  // 진행 완료(completed)일 때만 점수 표시 (단, hideScore가 true면 숨김)
+  const showScore = status === 'completed' && !hideScore;
+  const isInProgress = status === 'in_progress' && !hideScore;
   const hasRelayResults = relayRankings && relayRankings.length > 0;
 
   return (
