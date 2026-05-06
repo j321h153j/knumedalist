@@ -48,6 +48,7 @@ export default function BoothDetail({ booth, boothIcon, sessionInfo, formatTime,
   const hasRankings = liveRankings && (Array.isArray(liveRankings) ? liveRankings.length > 0 : Object.keys(liveRankings).length > 0);
   const isGenderSeparated = liveRankings && !Array.isArray(liveRankings);
   const isShoeBooth = String(booth?.name || '').includes('신발');
+  const isWeightBooth = String(booth?.name || '').includes('웨이트') || String(booth?.name || '').includes('데드');
 
   let displayRankings = [];
   let showGenderTabs = isGenderSeparated;
@@ -167,7 +168,7 @@ export default function BoothDetail({ booth, boothIcon, sessionInfo, formatTime,
             <div className="flex items-center justify-between mb-5">
               <h3 className="font-cafe24 text-lg font-bold text-gray-800 flex items-center gap-2">
                 <span className="material-symbols-outlined text-pink-500 text-[24px]" style={{fontVariationSettings: "'FILL' 1"}}>emoji_events</span>
-                실시간 학번별 랭킹
+                {isWeightBooth ? '실시간 개인 랭킹' : '실시간 학번별 랭킹'}
               </h3>
               <button 
                 onClick={fetchLiveRankings}
@@ -204,7 +205,7 @@ export default function BoothDetail({ booth, boothIcon, sessionInfo, formatTime,
                   
                   return (
                     <div 
-                      key={rank.team_id || idx}
+                      key={`${rank.team_id}-${rank.participant_name}-${idx}`}
                       className={`flex items-center gap-4 px-5 py-4 rounded-2xl border transition-all ${
                         isTop3 
                           ? 'bg-white border-pink-100 shadow-sm' 
@@ -242,8 +243,9 @@ export default function BoothDetail({ booth, boothIcon, sessionInfo, formatTime,
             </div>
             
             <p className="mt-4 text-center text-[10px] text-gray-400 font-lexend">
-              팀별 최고 기록 또는 합계 점수 기준입니다.
+              {isWeightBooth ? '개인 최고 기록 기준입니다.' : isShoeBooth ? '팀별 합계 점수 기준입니다.' : '팀별 최고 기록 기준입니다.'}
             </p>
+
           </motion.div>
         )}
 
